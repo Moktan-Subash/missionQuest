@@ -1,0 +1,190 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  /* High-End Professional Obsidian UI tokens (Linear/Stripe style) */
+  --bg-main: #09090B;        /* Obsidian void */
+  --bg-card: #18181B;        /* Neutral dark card */
+  --bg-card-hover: #202024;  /* Hover state */
+  --border-color: #27272A;   /* Minimal dark border */
+  --border-hover: #3F3F46;   /* Border highlight */
+  
+  --primary: #FFFFFF;        /* Crisp white primary */
+  --primary-text: #09090B;   /* Text inside white buttons */
+  --accent: #3F83F8;         /* Tech Blue */
+  
+  --success: #10B981;        /* Emerald */
+  --warning: #F59E0B;        /* Amber */
+  --danger: #EF4444;         /* Red */
+  
+  --text-main: #F4F4F5;      /* Slate-100 */
+  --text-muted: #A1A1AA;     /* Slate-400 */
+  --text-dim: #71717A;       /* Slate-500 */
+  
+  --font-main: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  
+  font-family: var(--font-main);
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  font-family: var(--font-main);
+  min-height: 100vh;
+  line-height: 1.5;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.01em;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-main);
+}
+::-webkit-scrollbar-thumb {
+  background: #27272A;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3F3F46;
+}
+
+h1, h2, h3, h4 {
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+}
+
+p {
+  color: var(--text-muted);
+}
+
+/* Professional Card Container */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.card:hover {
+  border-color: var(--border-hover);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+}
+
+/* Professional Crisp Button */
+.btn {
+  font-family: var(--font-main);
+  font-weight: 500;
+  font-size: 0.875rem;
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: var(--primary-text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+.btn-primary:hover {
+  background: #E4E4E7;
+  transform: translateY(-1px);
+}
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-secondary {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+}
+.btn-secondary:hover {
+  background: var(--bg-card);
+  border-color: var(--border-hover);
+}
+
+.btn-accent {
+  background: var(--accent);
+  color: #ffffff;
+  font-weight: 600;
+}
+.btn-accent:hover {
+  background: #2563EB;
+  transform: translateY(-1px);
+}
+
+.btn-gold {
+  background: linear-gradient(90deg, #FACC15, #F59E0B);
+  color: #09090b;
+  font-weight: 700;
+  border: none;
+}
+.btn-gold:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* Form inputs */
+.form-group {
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+}
+
+.form-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.form-control {
+  background: #09090B;
+  border: 1px solid var(--border-color);
+  color: #fff;
+  font-family: var(--font-main);
+  font-size: 0.9rem;
+  padding: 10px 14px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+.form-control:focus {
+  outline: none;
+  border-color: #52525B;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.05);
+}
+select.form-control option {
+  background: var(--bg-main);
+  color: #fff;
+}

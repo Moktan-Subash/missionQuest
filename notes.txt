@@ -1,0 +1,157 @@
+# MissionQuest - Project Scope & Notes
+
+## Project Credentials
+- **Supabase DB Password:** stored in password manager (removed from this file — do not re-add plaintext secrets here)
+
+## Core Concept
+MissionQuest (formerly esports missions) is a platform that allows casual and semi-pro gamers to monetize their gaming time and talent by completing specific in-game challenges ("missions") for real cash, coupons, or rewards.
+
+---
+
+## PHASE 1: Core Mission & Reward (Current Focus)
+We are focusing exclusively on the core mission and reward loop for the first release.
+
+### 1. User Authentication & Profile
+- Sign up and login using email/password (via Supabase Auth).
+- Profile creation: username, email, list of gaming usernames/IDs (e.g., MLBB Ign, PUBG character ID).
+
+### 2. Mission Board
+- Users can browse a list of active missions.
+- Each mission displays:
+  - Game Name (e.g., Mobile Legends, PUBG Mobile)
+  - Mission Description (e.g., "Get 15 kills in a Classic Match", "Get MVP in a Ranked Match")
+  - Reward Amount (e.g., Rs. 50 / $0.50)
+  - Rules & Requirements (e.g., Must show match date, score, and username clearly)
+
+### 3. Mission Submission & Verification
+- When a user wants to claim a reward:
+  - They select the mission.
+  - They upload a screenshot of their end-game scoreboard as proof of completion.
+  - Submission status: `Pending Review` -> `Approved` or `Rejected` (with reason).
+  - *Verification plan:* Start with manual admin verification (via a dashboard/Supabase), with plans to introduce AI screenshot scanning (Gemini) to automate approval.
+
+### 4. Wallet & Withdrawal System
+- Users have a virtual wallet tracking their earnings.
+- When a mission is `Approved`, cash is credited to their wallet balance.
+- **Withdrawal integration:**
+  - Local market: **eSewa** (Nepal)
+  - International market: **PayPal**
+  - Users request a payout -> admin processes withdrawal.
+
+---
+
+## DATABASE SCHEMA DESIGN (Supabase)
+To support Phase 1, we will need the following database tables:
+
+1. **profiles**
+   - `id` (references auth.users)
+   - `username` (text)
+   - `game_ids` (jsonb: map of game names to user's in-game names/IDs)
+   - `created_at` (timestamp)
+
+2. **missions**
+   - `id` (uuid)
+   - `title` (text)
+   - `description` (text)
+   - `game` (text: e.g., 'MLBB', 'PUBG')
+   - `reward_amount` (numeric)
+   - `rules` (text)
+   - `is_active` (boolean)
+   - `created_at` (timestamp)
+
+3. **submissions**
+   - `id` (uuid)
+   - `user_id` (references profiles)
+   - `mission_id` (references missions)
+   - `screenshot_url` (text: path to uploaded image in Supabase Storage)
+   - `status` (text: 'pending', 'approved', 'rejected')
+   - `rejection_reason` (text)
+   - `submitted_at` (timestamp)
+
+4. **wallets**
+   - `id` (uuid, references profiles)
+   - `balance` (numeric)
+   - `updated_at` (timestamp)
+
+5. **payout_requests**
+   - `id` (uuid)
+   - `user_id` (references profiles)
+   - `amount` (numeric)
+   - `payment_method` (text: 'esewa', 'paypal')
+   - `payment_details` (text: phone number or email)
+   - `status` (text: 'pending', 'processed', 'cancelled')
+   - `requested_at` (timestamp)
+
+---
+
+## FUTURE PHASES (Out of Scope for Phase 1)
+- **Phase 2: Tournaments** (brackets, team formation, entry fees, tournament prize pools).
+- **Phase 3: Live Custom Lobbies** (posting and joining custom lobby codes for practice matches).
+
+---
+
+## TODO: Real Deployment, Payments & SMS (do after core UI/features are polished)
+
+Status as of 2026-07-14: core loop works end-to-end (auth, missions, wallet, admin dashboard,
+membership, live sync, mobile responsive, gaming-themed UI). Not yet real: payments are
+manual (user sends money externally, admin verifies a screenshot) and phone OTP is mocked
+(hardcoded `123456` in App.tsx). Next session(s) will keep working on UI/features first;
+this list is for when we're ready to go live for real.
+
+### 1. Deployment
+- Frontend: `npm run build` (static output) -> Vercel / Netlify / Cloudflare Pages.
+- Backend: nothing new to stand up — keep using the existing Supabase Cloud project as-is.
+- Set Supabase URL/anon key as env vars in the hosting provider's dashboard, not committed.
+- Still not a git repo (`git init` never run) — need git + a GitHub push before most
+  Vercel/Netlify auto-deploy-from-repo flows will work. Scrub schema.sql/notes.txt/.env.local
+  one more time before that push.
+
+### 2. Real SMS OTP — DONE (2026-07-15), code side. Dashboard config still needed.
+- Went with Option A: Supabase Auth's built-in Phone Auth. App.tsx's handleSendOTP/
+  handleResendOTP/handleVerifyOTP now call the real `supabase.auth.updateUser({phone})`
+  / `supabase.auth.verifyOtp({phone, token, type: 'phone_change'})` APIs instead of the
+  hardcoded 123456 check. Numbers are Nepal-only local input, converted to E.164
+  (+977...) before hitting the API.
+- STILL NEEDED before this actually sends real SMS: in the Supabase dashboard, go to
+  Authentication -> Providers -> Phone, enable it, and configure one of Twilio /
+  MessageBird / Vonage with a real account + API credentials. Until this is
+  configured, `updateUser({phone})` will fail with a provider-not-configured error.
+- Gotcha to check when picking a provider: SMS deliverability/pricing to Nepal
+  numbers specifically varies by provider — verify this works for +977 numbers
+  before relying on it, not just assumed to work by default.
+
+### 3. Real Payment Integration (replaces manual-send + admin-verifies-screenshot)
+- eSewa (Nepal) and PayPal: client kicks off checkout -> provider confirms -> a Supabase
+  Edge Function verifies the transaction server-side against the provider's API (never
+  trust the client saying "payment succeeded").
+- That Edge Function then calls a `SECURITY DEFINER` Postgres RPC to credit the wallet /
+  upgrade membership — same atomic, race-safe pattern already used by
+  `start_mission_attempt()` in schema.sql.
+- Decide whether to keep manual verification as a fallback (e.g. for large amounts) or
+  fully replace it once the automated flow is live.
+- Both providers also send server-to-server webhooks on payment completion — need a public
+  endpoint for those too; Edge Functions get one automatically.
+
+### 4. Before going fully live
+- Re-scrub schema.sql / notes.txt / .env.local for secrets.
+- Set up git + CI (`npm run verify` = tsc + oxlint + tests) once the repo exists.
+
+---
+
+## SHIPPED: Profile Expansion (2026-07-14/15)
+
+Seven features added to Profile + Admin: in-game ID linking (admin-verified, no
+official game APIs exist for live verification), notifications (admin broadcasts +
+auto-notify on mission/payout/deposit/membership status changes, via Realtime),
+customer support ticket form, rate us / feedback with admin average-rating view,
+Terms & Conditions + Privacy Policy static pages (PLACEHOLDER legal text, needs
+real legal review before going live), and delete account.
+
+**Delete account is deactivation, not permanent deletion** — true `auth.users` row
+deletion needs the Supabase service-role key, which must run in an Edge Function
+(same "later" bucket as real payments/OTP above). Deactivation blocks login and is
+recoverable by an admin (Admin → Players → Reactivate).
+
+**Notifications scope note:** only covers admin broadcasts + status-change alerts.
+There's no "like" or other social feature in the app to hook a like-notification
+into — if that's wanted later, the social feature itself needs to be designed first.
