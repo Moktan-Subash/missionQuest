@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Personal scratch notes -- has held API keys/secrets before, keep it local only
+notes.txt

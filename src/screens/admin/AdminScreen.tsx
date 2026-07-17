@@ -88,6 +88,8 @@ interface AdminScreenProps {
   handleAdminVerifyGameId: (linkId: string) => void;
   handleAdminRejectGameId: (linkId: string) => void;
   handleViewGameIdScreenshot: (path: string) => void;
+  handleRetryGameIdVerification: (linkId: string) => void;
+  retryingGameIdVerification: string | null;
 
   // Broadcast
   broadcastForm: { title: string; body: string };
@@ -169,6 +171,8 @@ function AdminScreen({
   handleAdminVerifyGameId,
   handleAdminRejectGameId,
   handleViewGameIdScreenshot,
+  handleRetryGameIdVerification,
+  retryingGameIdVerification,
   broadcastForm,
   setBroadcastForm,
   sendingBroadcast,
@@ -331,6 +335,8 @@ function AdminScreen({
           handleAdminVerifyGameId={handleAdminVerifyGameId}
           handleAdminRejectGameId={handleAdminRejectGameId}
           handleViewGameIdScreenshot={handleViewGameIdScreenshot}
+          handleRetryGameIdVerification={handleRetryGameIdVerification}
+          retryingGameIdVerification={retryingGameIdVerification}
         />
       )}
 

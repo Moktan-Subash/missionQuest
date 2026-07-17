@@ -15,11 +15,16 @@
 //
 // Deploy: supabase functions deploy verify-game-id
 // Requires one secret: supabase secrets set GEMINI_API_KEY=<your key>
-// (get a free-tier key at https://aistudio.google.com/apikey)
+// (get a free-tier key at https://aistudio.google.com/apikey -- real Gemini
+// keys look like "AIzaSy..."; anything else is the wrong kind of key and
+// every call below will fail against it)
 
-import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { createClient, type SupabaseClient } from 'jsr:@supabase/supabase-js@2';
 
-const GEMINI_MODEL = 'gemini-2.5-flash-lite';
+// Model IDs get retired periodically -- if this starts 404ing with "no
+// longer available to new users" again, check https://ai.google.dev/gemini-api/docs/models
+// for the current cheapest vision-capable model and swap it in here.
+const GEMINI_MODEL = 'gemini-3.1-flash-lite';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -33,6 +38,18 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+// Screenshots (hundreds of KB+) blow the JS engine's argument-count limit if
+// you spread every byte into String.fromCharCode(...bytes) at once -- "Maximum
+// call stack size exceeded". Chunking keeps each call well under that limit.
+function uint8ArrayToBase64(bytes: Uint8Array): string {
+  const CHUNK_SIZE = 8192;
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK_SIZE));
+  }
+  return btoa(binary);
+}
+
 // Loose match: strips everything but letters/digits and lowercases, so
 // "123 456 789" and "123456789" (or minor casing/spacing differences in a
 // nickname) still count as a match. This is deliberately forgiving -- a
@@ -44,13 +61,30 @@ function looseMatch(a: string, b: string): boolean {
   return na.length > 0 && (na === nb || na.includes(nb) || nb.includes(na));
 }
 
+// Every failure path writes here instead of just returning an HTTP error.
+// Without this, a failed AI call and "AI never ran" look identical in the
+// database -- the row just silently stays 'pending' with no trace, which is
+// exactly the confusing behavior this was added to fix.
+async function markVerificationFailed(adminClient: SupabaseClient, linkId: string, reason: string) {
+  await adminClient
+    .from('game_id_links')
+    .update({
+      verification_method: 'ai_vision',
+      admin_notes: `Auto-verification could not run: ${reason}. Please review manually.`,
+    })
+    .eq('id', linkId);
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: CORS_HEADERS });
   }
 
+  let adminClient: SupabaseClient | null = null;
+  let linkId: string | undefined;
+
   try {
-    const { linkId } = await req.json();
+    ({ linkId } = await req.json());
     if (!linkId) {
       return jsonResponse({ error: 'linkId is required' }, 400);
     }
@@ -62,11 +96,6 @@ Deno.serve(async (req: Request) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
-
-    if (!geminiApiKey) {
-      return jsonResponse({ error: 'Server is not configured with a GEMINI_API_KEY secret yet' }, 500);
-    }
 
     // Scoped to the caller's own JWT, only used to confirm who's asking.
     const callerClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
@@ -80,7 +109,7 @@ Deno.serve(async (req: Request) => {
     // Service role: bypasses RLS so this function can read the private
     // screenshot bucket and write the verification result regardless of the
     // (admin-only) UPDATE policy on game_id_links.
-    const adminClient = createClient(supabaseUrl, serviceRoleKey);
+    adminClient = createClient(supabaseUrl, serviceRoleKey);
 
     const { data: link, error: linkError } = await adminClient
       .from('game_id_links')
@@ -92,12 +121,28 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ error: 'Game ID link not found' }, 404);
     }
 
+    // Either the link's own owner (normal flow) or an admin (retrying a
+    // failed check from the review queue, no need to re-upload anything).
     if (link.user_id !== userData.user.id) {
-      return jsonResponse({ error: 'This link does not belong to you' }, 403);
+      const { data: callerProfile } = await adminClient
+        .from('profiles')
+        .select('role')
+        .eq('id', userData.user.id)
+        .single();
+
+      if (!callerProfile || (callerProfile.role !== 'admin' && callerProfile.role !== 'moderator')) {
+        return jsonResponse({ error: 'This link does not belong to you' }, 403);
+      }
     }
 
     if (!link.screenshot_url) {
       return jsonResponse({ error: 'No screenshot on file for this link' }, 400);
+    }
+
+    const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
+    if (!geminiApiKey) {
+      await markVerificationFailed(adminClient, linkId, 'no GEMINI_API_KEY secret is configured on the server');
+      return jsonResponse({ error: 'Server is not configured with a GEMINI_API_KEY secret yet', verified: false }, 200);
     }
 
     const { data: imageBlob, error: downloadError } = await adminClient
@@ -106,11 +151,12 @@ Deno.serve(async (req: Request) => {
       .download(link.screenshot_url);
 
     if (downloadError || !imageBlob) {
-      return jsonResponse({ error: 'Could not read the uploaded screenshot' }, 500);
+      await markVerificationFailed(adminClient, linkId, 'the uploaded screenshot could not be read from storage');
+      return jsonResponse({ error: 'Could not read the uploaded screenshot', verified: false }, 200);
     }
 
     const imageBuffer = await imageBlob.arrayBuffer();
-    const base64Image = btoa(String.fromCharCode(...new Uint8Array(imageBuffer)));
+    const base64Image = uint8ArrayToBase64(new Uint8Array(imageBuffer));
     const mimeType = imageBlob.type || 'image/jpeg';
 
     const prompt = `This is a screenshot of a ${link.game_type} player profile screen. ` +
@@ -150,7 +196,18 @@ Deno.serve(async (req: Request) => {
 
     if (!geminiResponse.ok) {
       const errText = await geminiResponse.text();
-      console.error('Gemini API error:', errText);
+      console.error('Gemini API error:', geminiResponse.status, errText);
+
+      let reason: string;
+      if (geminiResponse.status === 429) {
+        reason = 'the Gemini API rate-limited this request (HTTP 429 -- the key is valid, but the free tier\'s requests-per-minute or per-day quota was hit). Wait a bit and try again, or check quota at https://aistudio.google.com/apikey';
+      } else if (geminiResponse.status === 400 || geminiResponse.status === 401 || geminiResponse.status === 403) {
+        reason = `the Gemini API rejected the request (HTTP ${geminiResponse.status} -- likely an invalid or missing GEMINI_API_KEY; real keys start with "AIzaSy")`;
+      } else {
+        reason = `the Gemini API call failed (HTTP ${geminiResponse.status})`;
+      }
+
+      await markVerificationFailed(adminClient, linkId, reason);
       return jsonResponse({ error: 'Vision check failed, left pending for admin review', verified: false }, 200);
     }
 
@@ -188,6 +245,9 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ verified: isMatch, extractedId, extractedNickname });
   } catch (e) {
     console.error('verify-game-id error:', e);
-    return jsonResponse({ error: 'Unexpected error during verification' }, 500);
+    if (adminClient && linkId) {
+      await markVerificationFailed(adminClient, linkId, `an unexpected server error occurred (${e instanceof Error ? e.message : 'unknown'})`);
+    }
+    return jsonResponse({ error: 'Unexpected error during verification', verified: false }, 200);
   }
 });

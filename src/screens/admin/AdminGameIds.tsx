@@ -8,6 +8,8 @@ interface AdminGameIdsProps {
   handleAdminVerifyGameId: (linkId: string) => void;
   handleAdminRejectGameId: (linkId: string) => void;
   handleViewGameIdScreenshot: (path: string) => void;
+  handleRetryGameIdVerification: (linkId: string) => void;
+  retryingGameIdVerification: string | null;
 }
 
 const GAME_ID_STATUS_STYLE: Record<GameIdLink['status'], { label: string; icon: string; color: string; bg: string }> = {
@@ -24,6 +26,8 @@ function AdminGameIds({
   handleAdminVerifyGameId,
   handleAdminRejectGameId,
   handleViewGameIdScreenshot,
+  handleRetryGameIdVerification,
+  retryingGameIdVerification,
 }: AdminGameIdsProps) {
   return (
     <>
@@ -44,21 +48,44 @@ function AdminGameIds({
                 <div style={{ fontSize: '0.9rem', color: '#fff', marginTop: '0.35rem', fontFamily: 'monospace' }}>
                   ID: {link.in_game_id}
                 </div>
-                {link.verification_method === 'ai_vision' && (
+                {link.verification_method === 'ai_vision' && link.ai_extracted_id && (
                   <div style={{ fontSize: '0.8rem', color: 'var(--warning)', marginTop: '0.5rem' }}>
-                    AI read: {link.ai_extracted_id || '(unreadable)'}
+                    AI read: {link.ai_extracted_id}
                     {link.ai_extracted_nickname && ` · "${link.ai_extracted_nickname}"`}
-                    {' '}— didn't match, needs a manual look.
+                  </div>
+                )}
+                {link.verification_method === 'ai_vision' && link.admin_notes && (
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', marginTop: '0.5rem' }}>
+                    <div style={{ fontSize: '0.8rem', color: link.ai_extracted_id ? 'var(--text-dim)' : 'var(--danger)', flex: 1 }}>
+                      {!link.ai_extracted_id && '⚠️ '}{link.admin_notes}
+                    </div>
+                    <button
+                      onClick={() => setAdminRejectionReason({ ...adminRejectionReason, [link.id]: link.admin_notes! })}
+                      className="btn btn-secondary"
+                      style={{ padding: '0.2rem 0.6rem', fontSize: '0.7rem', flexShrink: 0 }}
+                    >
+                      📋 Use as Reason
+                    </button>
                   </div>
                 )}
                 {link.screenshot_url && (
-                  <button
-                    onClick={() => handleViewGameIdScreenshot(link.screenshot_url!)}
-                    className="btn btn-secondary"
-                    style={{ marginTop: '0.5rem', padding: '0.3rem 0.75rem', fontSize: '0.75rem' }}
-                  >
-                    View Screenshot
-                  </button>
+                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                    <button
+                      onClick={() => handleViewGameIdScreenshot(link.screenshot_url!)}
+                      className="btn btn-secondary"
+                      style={{ padding: '0.3rem 0.75rem', fontSize: '0.75rem' }}
+                    >
+                      View Screenshot
+                    </button>
+                    <button
+                      onClick={() => handleRetryGameIdVerification(link.id)}
+                      disabled={retryingGameIdVerification === link.id}
+                      className="btn btn-secondary"
+                      style={{ padding: '0.3rem 0.75rem', fontSize: '0.75rem' }}
+                    >
+                      {retryingGameIdVerification === link.id ? 'Retrying...' : '🔄 Retry Verification'}
+                    </button>
+                  </div>
                 )}
               </div>
 

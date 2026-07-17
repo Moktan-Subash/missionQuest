@@ -142,6 +142,7 @@ function App() {
   const [gameIdScreenshotFile, setGameIdScreenshotFile] = useState<File | null>(null);
   const [linkingGameId, setLinkingGameId] = useState(false);
   const [verifyingGameId, setVerifyingGameId] = useState(false);
+  const [retryingGameIdVerification, setRetryingGameIdVerification] = useState<string | null>(null);
   const [gameIdError, setGameIdError] = useState('');
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [broadcastForm, setBroadcastForm] = useState({ title: '', body: '' });
@@ -1486,6 +1487,16 @@ function App() {
     }
   };
 
+  const handleRetryGameIdVerification = async (linkId: string) => {
+    setRetryingGameIdVerification(linkId);
+    const { error } = await supabase.functions.invoke('verify-game-id', { body: { linkId } });
+    setRetryingGameIdVerification(null);
+    if (error) {
+      alert('Retry failed: ' + error.message);
+    }
+    fetchAdminPanelData();
+  };
+
   // --- ADMIN: MISSION MANAGER ---
   const openAddMissionModal = () => {
     setEditingMissionId(null);
@@ -1686,6 +1697,17 @@ function App() {
     } finally {
       setLinkingGameId(false);
       setVerifyingGameId(false);
+      fetchUserData(user.id);
+    }
+  };
+
+  const handleUnlinkGameId = async (linkId: string, gameType: string) => {
+    if (!window.confirm(`Unlink your ${gameType} ID? You'll need to relink and re-verify to add it back.`)) return;
+
+    const { error } = await supabase.from('game_id_links').delete().eq('id', linkId);
+    if (error) {
+      alert(error.message);
+    } else {
       fetchUserData(user.id);
     }
   };
@@ -2357,6 +2379,7 @@ function App() {
               verifyingGameId={verifyingGameId}
               gameIdError={gameIdError}
               handleLinkGameId={handleLinkGameId}
+              handleUnlinkGameId={handleUnlinkGameId}
               openSupportModal={openSupportModal}
               openFeedbackModal={openFeedbackModal}
               setShowDeleteAccountModal={setShowDeleteAccountModal}
@@ -2437,6 +2460,8 @@ function App() {
               handleAdminVerifyGameId={handleAdminVerifyGameId}
               handleAdminRejectGameId={handleAdminRejectGameId}
               handleViewGameIdScreenshot={handleViewGameIdScreenshot}
+              handleRetryGameIdVerification={handleRetryGameIdVerification}
+              retryingGameIdVerification={retryingGameIdVerification}
               broadcastForm={broadcastForm}
               setBroadcastForm={setBroadcastForm}
               sendingBroadcast={sendingBroadcast}

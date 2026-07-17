@@ -37,6 +37,7 @@ const defaultProps = {
   verifyingGameId: false,
   gameIdError: '',
   handleLinkGameId: vi.fn(),
+  handleUnlinkGameId: vi.fn(),
   openSupportModal: vi.fn(),
   openFeedbackModal: vi.fn(),
   setShowDeleteAccountModal: vi.fn(),
@@ -98,7 +99,7 @@ describe('ProfileScreen', () => {
         ]}
       />
     );
-    expect(screen.getByText('PUBG Mobile', { selector: '.profile-row-label' })).toBeInTheDocument();
+    expect(screen.getByText('PUBG Mobile')).toBeInTheDocument();
     expect(screen.getByText('5551234')).toBeInTheDocument();
     expect(screen.getByText('verified')).toBeInTheDocument();
   });

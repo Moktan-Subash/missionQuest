@@ -2019,3 +2019,12 @@ BEGIN
     RETURN v_result;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Lets a player remove their own game ID link (verified, pending, or
+-- rejected) so they can relink a different ID for that game -- otherwise a
+-- verified link can never be replaced since it's excluded from the "link a
+-- new ID" dropdown once verified. Simple self-scoped delete, no RPC needed
+-- (no cross-cutting logic like the tournament roster removals have).
+DROP POLICY IF EXISTS "Users can unlink their own game id" ON public.game_id_links;
+CREATE POLICY "Users can unlink their own game id" ON public.game_id_links
+    FOR DELETE USING (auth.uid() = user_id);
