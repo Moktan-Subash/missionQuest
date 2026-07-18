@@ -1157,6 +1157,9 @@ BEGIN
     RETURN CASE p_tournament_game_type
         WHEN 'MLBB' THEN 'Mobile Legends'
         WHEN 'PUBG' THEN 'PUBG Mobile'
+        WHEN 'FREEFIRE' THEN 'Free Fire'
+        WHEN 'COD' THEN 'Call of Duty Mobile'
+        WHEN 'CR' THEN 'Clash Royale'
         ELSE p_tournament_game_type
     END;
 END;
@@ -1348,8 +1351,8 @@ BEGIN
     END IF;
 
     SELECT COUNT(*) INTO v_member_count FROM public.tournament_team_members WHERE registration_id = p_registration_id;
-    IF v_member_count >= 5 THEN
-        RAISE EXCEPTION 'This team already has 5 players';
+    IF v_member_count >= v_tournament.team_size THEN
+        RAISE EXCEPTION 'This team already has % players', v_tournament.team_size;
     END IF;
 
     v_game_id_type := public.tournament_game_id_type(v_tournament.game_type);
@@ -1474,7 +1477,7 @@ BEGIN
         RAISE EXCEPTION 'Tournament not found';
     END IF;
 
-    IF v_tournament.registration_unit != 'team' THEN
+    IF v_tournament.bracket_style != 'elimination' THEN
         RAISE EXCEPTION 'This tournament does not use bracket-style matches';
     END IF;
 
@@ -1499,13 +1502,14 @@ BEGIN
         v_match_index := v_match_index + 1;
 
         IF i + 1 <= v_count THEN
-            INSERT INTO public.tournament_matches (tournament_id, round, label, match_type, best_of)
+            INSERT INTO public.tournament_matches (tournament_id, round, label, match_type, best_of, scheduled_time)
             VALUES (
                 p_tournament_id,
                 1,
                 CASE WHEN v_total_matches = 1 THEN 'Final' ELSE 'Round 1 - Match ' || v_match_index END,
                 'bracket',
-                CASE WHEN v_total_matches = 1 THEN 3 ELSE 1 END
+                CASE WHEN v_total_matches = 1 THEN 3 ELSE 1 END,
+                v_tournament.start_date
             )
             RETURNING id INTO v_match_id;
 
@@ -1550,7 +1554,7 @@ BEGIN
         RAISE EXCEPTION 'Tournament not found';
     END IF;
 
-    IF v_tournament.registration_unit != 'player' THEN
+    IF v_tournament.bracket_style != 'battle_royale' THEN
         RAISE EXCEPTION 'This tournament does not use lobby-style matches';
     END IF;
 
@@ -1832,7 +1836,15 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- round isn't fully decided yet, if it was the final (only 1 match), or if
 -- the next round was already generated (idempotency guard against being
 -- called twice for the same round).
-CREATE OR REPLACE FUNCTION public.advance_bracket_round(p_tournament_id UUID, p_round INTEGER)
+--
+-- No permission check here by design -- this is the shared internal version,
+-- only reachable from other SECURITY DEFINER functions that have already
+-- validated the caller is allowed to trigger it (confirm_match_result checks
+-- is_admin(); resolve_missed_checkin checks its own unspoofable time +
+-- check-in-state conditions). The public RPC of the same un-prefixed name
+-- below is the only PostgREST-reachable entry point and re-adds the
+-- is_admin() gate for any direct/ad-hoc caller.
+CREATE OR REPLACE FUNCTION public._advance_bracket_round_internal(p_tournament_id UUID, p_round INTEGER)
 RETURNS void AS $$
 DECLARE
     v_incomplete_count INTEGER;
@@ -1872,13 +1884,14 @@ BEGIN
         v_match_index := v_match_index + 1;
 
         IF i + 1 <= v_count THEN
-            INSERT INTO public.tournament_matches (tournament_id, round, label, match_type, best_of)
+            INSERT INTO public.tournament_matches (tournament_id, round, label, match_type, best_of, scheduled_time)
             VALUES (
                 p_tournament_id,
                 p_round + 1,
                 CASE WHEN v_total_matches = 1 THEN 'Final' ELSE 'Round ' || (p_round + 1) || ' - Match ' || v_match_index END,
                 'bracket',
-                CASE WHEN v_total_matches = 1 THEN 3 ELSE 1 END
+                CASE WHEN v_total_matches = 1 THEN 3 ELSE 1 END,
+                NOW() + INTERVAL '10 minutes'
             )
             RETURNING id INTO v_match_id;
 
@@ -1895,6 +1908,83 @@ BEGIN
 
         i := i + 2;
     END LOOP;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Public RPC, PostgREST-reachable -- the only entry point a direct/ad-hoc
+-- caller can hit. Re-adds the admin gate before delegating to the internal
+-- version above.
+CREATE OR REPLACE FUNCTION public.advance_bracket_round(p_tournament_id UUID, p_round INTEGER)
+RETURNS void AS $$
+BEGIN
+    IF NOT public.is_admin() THEN
+        RAISE EXCEPTION 'Only admins can advance bracket rounds';
+    END IF;
+    PERFORM public._advance_bracket_round_internal(p_tournament_id, p_round);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Splits the tournament's prize pool evenly across every member of the
+-- winning registration's roster (a solo/1v1 registration has exactly one
+-- member -- itself -- so this naturally degenerates to "100% to the solo
+-- winner" with no special-casing needed). The "already paid out" guard is
+-- the real idempotency protection here (not a permission check), so it
+-- stays in the internal version too -- see _advance_bracket_round_internal
+-- above for why this is split into an internal + admin-gated public pair.
+CREATE OR REPLACE FUNCTION public._payout_tournament_prize_internal(p_tournament_id UUID, p_winner_registration_id UUID)
+RETURNS void AS $$
+DECLARE
+    v_prize_pool NUMERIC(10,2);
+    v_xp_reward INTEGER;
+    v_member_count INTEGER;
+    v_share NUMERIC(10,2);
+BEGIN
+    IF EXISTS (SELECT 1 FROM public.tournaments WHERE id = p_tournament_id AND winner_registration_id IS NOT NULL) THEN
+        RAISE EXCEPTION 'This tournament has already been paid out';
+    END IF;
+
+    SELECT prize_pool, xp_reward INTO v_prize_pool, v_xp_reward FROM public.tournaments WHERE id = p_tournament_id;
+
+    SELECT COUNT(*) INTO v_member_count
+    FROM public.tournament_team_members
+    WHERE registration_id = p_winner_registration_id;
+
+    IF v_member_count > 0 THEN
+        v_share := ROUND(v_prize_pool / v_member_count, 2);
+
+        UPDATE public.wallets
+        SET balance = balance + v_share, updated_at = NOW()
+        WHERE id IN (
+            SELECT user_id FROM public.tournament_team_members
+            WHERE registration_id = p_winner_registration_id
+        );
+
+        -- XP is a personal profile stat, not a shared pool of money like the
+        -- prize -- every winning member gets the full xp_reward, not a split
+        -- share.
+        IF v_xp_reward > 0 THEN
+            UPDATE public.profiles
+            SET xp = xp + v_xp_reward
+            WHERE id IN (
+                SELECT user_id FROM public.tournament_team_members
+                WHERE registration_id = p_winner_registration_id
+            );
+        END IF;
+    END IF;
+
+    UPDATE public.tournaments
+    SET status = 'completed', winner_registration_id = p_winner_registration_id, completed_at = NOW()
+    WHERE id = p_tournament_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION public.payout_tournament_prize(p_tournament_id UUID, p_winner_registration_id UUID)
+RETURNS void AS $$
+BEGIN
+    IF NOT public.is_admin() THEN
+        RAISE EXCEPTION 'Only admins can pay out tournament prizes';
+    END IF;
+    PERFORM public._payout_tournament_prize_internal(p_tournament_id, p_winner_registration_id);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -1935,7 +2025,15 @@ BEGIN
     SET status = 'completed', winner_registration_id = p_winner_registration_id
     WHERE id = p_match_id;
 
-    PERFORM public.advance_bracket_round(v_match.tournament_id, v_match.round);
+    PERFORM public._advance_bracket_round_internal(v_match.tournament_id, v_match.round);
+
+    -- 'Final' is only ever the label of the one match that decides the whole
+    -- tournament (set by generate_bracket/advance_bracket_round whenever
+    -- exactly 2 registrations remain) -- so confirming it is the signal that
+    -- the champion is now decided and the prize pool should be paid out.
+    IF v_match.label = 'Final' THEN
+        PERFORM public._payout_tournament_prize_internal(v_match.tournament_id, p_winner_registration_id);
+    END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -2028,3 +2126,216 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 DROP POLICY IF EXISTS "Users can unlink their own game id" ON public.game_id_links;
 CREATE POLICY "Users can unlink their own game id" ON public.game_id_links
     FOR DELETE USING (auth.uid() = user_id);
+
+
+-- 22. TOURNAMENT OPS PHASE F: multi-game + 1v1/team format.
+-- Decouples "which game" from "how matches are generated". Previously
+-- registration_unit (team|player) doubled as the bracket-vs-lobby switch,
+-- which meant solo could only ever mean PUBG's battle-royale lobby format.
+-- bracket_style is the new, independent switch: 'elimination' (1v1 or
+-- team-vs-team randomly-paired knockout bracket, works for any game) vs
+-- 'battle_royale' (PUBG's existing points-across-lobbies format). New
+-- tournaments always default to 'elimination' -- only the one pre-existing
+-- seeded PUBG Showdown is backfilled to 'battle_royale' below, by its known
+-- id, so re-running this script never reclassifies a real admin-created one.
+ALTER TABLE public.tournaments DROP CONSTRAINT IF EXISTS tournaments_game_type_check;
+ALTER TABLE public.tournaments ADD CONSTRAINT tournaments_game_type_check
+    CHECK (game_type IN ('MLBB', 'PUBG', 'FREEFIRE', 'COD', 'CR'));
+
+ALTER TABLE public.tournaments ADD COLUMN IF NOT EXISTS team_size INTEGER NOT NULL DEFAULT 5;
+ALTER TABLE public.tournaments ADD COLUMN IF NOT EXISTS bracket_style TEXT NOT NULL DEFAULT 'elimination'
+    CHECK (bracket_style IN ('elimination', 'battle_royale'));
+
+UPDATE public.tournaments SET bracket_style = 'battle_royale'
+WHERE id = 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a02';
+
+-- The direct is_admin()-gated UPDATE policy on tournament_matches (see phase
+-- 18) was silently no-op-ing on scheduled_time from the client for reasons
+-- that didn't reproduce anywhere else admins update tables directly -- moving
+-- this one write to a SECURITY DEFINER RPC, like every other cross-user
+-- write in this file, means a permission/lookup failure now raises a real
+-- error instead of a silent 0-row update.
+CREATE OR REPLACE FUNCTION public.set_match_scheduled_time(p_match_id UUID, p_scheduled_time TIMESTAMPTZ)
+RETURNS public.tournament_matches AS $$
+DECLARE
+    v_result public.tournament_matches;
+BEGIN
+    IF NOT public.is_admin() THEN
+        RAISE EXCEPTION 'Only admins can schedule matches';
+    END IF;
+
+    UPDATE public.tournament_matches
+    SET scheduled_time = p_scheduled_time
+    WHERE id = p_match_id
+    RETURNING * INTO v_result;
+
+    IF v_result IS NULL THEN
+        RAISE EXCEPTION 'Match not found';
+    END IF;
+
+    RETURN v_result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- 23. TOURNAMENT OPS PHASE G: prize payout + history.
+-- winner_registration_id is written by payout_tournament_prize (see phase
+-- 20's confirm_match_result) once the 'Final' match is confirmed. Nullable
+-- and only meaningful once status = 'completed'.
+ALTER TABLE public.tournaments ADD COLUMN IF NOT EXISTS winner_registration_id UUID REFERENCES public.tournament_registrations;
+ALTER TABLE public.tournaments ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP WITH TIME ZONE;
+
+-- tournament_registrations is normally private (own-row-only, see phase 16),
+-- but once a tournament has crowned a winner, announcing who it was is
+-- normal public behavior for a tournament history page -- so specifically
+-- (and only) the registration referenced by some tournament's
+-- winner_registration_id becomes publicly readable. Every other
+-- registration stays private.
+DROP POLICY IF EXISTS "Winning registrations are publicly viewable" ON public.tournament_registrations;
+CREATE POLICY "Winning registrations are publicly viewable" ON public.tournament_registrations
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM public.tournaments
+            WHERE tournaments.winner_registration_id = tournament_registrations.id
+        )
+    );
+
+
+-- 24. TOURNAMENT OPS PHASE H: automatic check-in forfeit.
+-- Missing check-in was previously a no-op -- the rules text promised "or you
+-- forfeit" but nothing enforced it. There's no cron/background job in this
+-- project (no backend server at all -- see architecture notes), so this is
+-- triggered opportunistically from the client instead: whenever match data
+-- loads for a signed-in user, the app calls this for any of their matches
+-- that look forfeit-eligible. Safe to expose to any authenticated caller
+-- (not admin-gated) because every condition it checks is objective,
+-- server-recorded state the caller can't fabricate -- checked_in_at is only
+-- ever set by check_in_for_match, scheduled_time only by an admin. A caller
+-- can't manufacture a false forfeit by calling this early or repeatedly.
+ALTER TABLE public.notifications DROP CONSTRAINT IF EXISTS notifications_category_check;
+ALTER TABLE public.notifications ADD CONSTRAINT notifications_category_check
+    CHECK (category IN ('broadcast', 'mission', 'payout', 'deposit', 'membership', 'tournament'));
+
+CREATE OR REPLACE FUNCTION public.resolve_missed_checkin(p_match_id UUID)
+RETURNS void AS $$
+DECLARE
+    v_match public.tournament_matches;
+    v_tournament public.tournaments;
+    v_total_count INTEGER;
+    v_checked_in_count INTEGER;
+    v_winner_reg UUID;
+    v_missed_reg UUID;
+BEGIN
+    IF auth.uid() IS NULL THEN
+        RAISE EXCEPTION 'Not authenticated';
+    END IF;
+
+    SELECT * INTO v_match FROM public.tournament_matches WHERE id = p_match_id;
+    IF v_match IS NULL OR v_match.match_type != 'bracket' OR v_match.status = 'completed' THEN
+        RETURN;
+    END IF;
+
+    IF v_match.scheduled_time IS NULL OR NOW() < v_match.scheduled_time THEN
+        RETURN;
+    END IF;
+
+    SELECT COUNT(*) INTO v_total_count
+    FROM public.tournament_match_participants
+    WHERE match_id = p_match_id;
+
+    IF v_total_count != 2 THEN
+        RETURN;
+    END IF;
+
+    SELECT COUNT(*) INTO v_checked_in_count
+    FROM public.tournament_match_participants
+    WHERE match_id = p_match_id AND checked_in_at IS NOT NULL;
+
+    -- Exactly one side checked in -- both checked in is the normal flow,
+    -- neither checked in is left for admin to sort out (no way to tell who's
+    -- really at fault, so no auto-decision).
+    IF v_checked_in_count != 1 THEN
+        RETURN;
+    END IF;
+
+    SELECT registration_id INTO v_winner_reg
+    FROM public.tournament_match_participants
+    WHERE match_id = p_match_id AND checked_in_at IS NOT NULL;
+
+    SELECT registration_id INTO v_missed_reg
+    FROM public.tournament_match_participants
+    WHERE match_id = p_match_id AND checked_in_at IS NULL;
+
+    UPDATE public.tournament_matches
+    SET status = 'completed', winner_registration_id = v_winner_reg
+    WHERE id = p_match_id;
+
+    PERFORM public._advance_bracket_round_internal(v_match.tournament_id, v_match.round);
+
+    IF v_match.label = 'Final' THEN
+        PERFORM public._payout_tournament_prize_internal(v_match.tournament_id, v_winner_reg);
+    END IF;
+
+    SELECT * INTO v_tournament FROM public.tournaments WHERE id = v_match.tournament_id;
+
+    INSERT INTO public.notifications (user_id, title, body, category, related_id)
+    SELECT
+        ttm.user_id,
+        'Missed check-in — ' || v_tournament.title,
+        'You missed check-in for "' || v_match.label || '" and the match was forfeited to your opponent. ' ||
+        CASE
+            WHEN v_tournament.status = 'completed' THEN 'This tournament has already been completed.'
+            WHEN v_tournament.status = 'ongoing' THEN 'This tournament has already started.'
+            ELSE 'Check the tournament page for details.'
+        END,
+        'tournament',
+        v_match.tournament_id
+    FROM public.tournament_team_members ttm
+    WHERE ttm.registration_id = v_missed_reg;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- 25. TOURNAMENT OPS PHASE I: XP reward, awarded alongside the cash prize.
+ALTER TABLE public.tournaments ADD COLUMN IF NOT EXISTS xp_reward INTEGER NOT NULL DEFAULT 0;
+
+
+-- 26. TOURNAMENT OPS PHASE J: auto-close registration once the deadline
+-- passes. Same reasoning as resolve_missed_checkin -- no cron in this app,
+-- so the client calls this opportunistically whenever the public tournament
+-- list loads (including for guests, since it doesn't touch anything
+-- user-specific). No permission check needed: the WHERE clause itself is
+-- the safety mechanism -- a caller can't force a status change on a
+-- tournament that isn't actually 'registration_open' with an actually-past
+-- deadline, both of which are admin-set/server-clock facts, not caller input.
+-- Bracket generation stays a deliberate manual "Generate Bracket" click --
+-- only the registration window itself closes automatically.
+CREATE OR REPLACE FUNCTION public.close_expired_registration(p_tournament_id UUID)
+RETURNS void AS $$
+BEGIN
+    UPDATE public.tournaments
+    SET status = 'ongoing'
+    WHERE id = p_tournament_id
+      AND status = 'registration_open'
+      AND registration_deadline IS NOT NULL
+      AND registration_deadline < NOW();
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- 27. TOURNAMENT OPS PHASE K: public bracket visibility.
+-- Once a registration has actually been drawn into a match, showing who's
+-- in the bracket is normal public tournament behavior (every real esports
+-- bracket is public) -- so, specifically and only, registrations that
+-- appear in at least one tournament_match_participants row become publicly
+-- readable. Registrations that haven't been drawn into a match yet (still
+-- just sitting in the pre-bracket registration pool) stay private, same as
+-- before.
+DROP POLICY IF EXISTS "Bracket participants are publicly viewable" ON public.tournament_registrations;
+CREATE POLICY "Bracket participants are publicly viewable" ON public.tournament_registrations
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM public.tournament_match_participants tmp
+            WHERE tmp.registration_id = tournament_registrations.id
+        )
+    );

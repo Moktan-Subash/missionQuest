@@ -2,6 +2,7 @@ import type { TournamentRegistration, TournamentTeamMember, VerifiedPlayer } fro
 
 interface TeamRosterModalProps {
   rosterManagingRegistration: TournamentRegistration;
+  teamSize: number;
   myTeamMembers: TournamentTeamMember[];
   setShowTeamRosterModal: (show: boolean) => void;
   playerSearchQuery: string;
@@ -16,6 +17,7 @@ interface TeamRosterModalProps {
 
 function TeamRosterModal({
   rosterManagingRegistration,
+  teamSize,
   myTeamMembers,
   setShowTeamRosterModal,
   playerSearchQuery,
@@ -28,7 +30,7 @@ function TeamRosterModal({
   rosterError,
 }: TeamRosterModalProps) {
   const roster = myTeamMembers.filter((m) => m.registration_id === rosterManagingRegistration.id);
-  const isFull = roster.length >= 5;
+  const isFull = roster.length >= teamSize;
 
   return (
     <div className="modal-overlay">
@@ -45,7 +47,7 @@ function TeamRosterModal({
         )}
 
         <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginBottom: '0.5rem' }}>
-          {roster.length} / 5 players
+          {roster.length} / {teamSize} players
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.25rem' }}>

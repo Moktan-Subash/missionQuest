@@ -110,10 +110,16 @@ function App() {
   const [editingTournamentId, setEditingTournamentId] = useState<string | null>(null);
   const [tournamentForm, setTournamentForm] = useState<TournamentFormState>({
     game_type: 'MLBB',
+    format: 'team',
+    team_size: '5',
     title: '',
     description: '',
     prize_pool: '50000',
-    min_participants: '76',
+    xp_reward: '0',
+    min_participants: '2',
+    status: 'registration_open',
+    start_date: '',
+    registration_deadline: '',
     livestream_url: '',
     rules: '',
   });
@@ -125,6 +131,7 @@ function App() {
   const [adminTournamentTeamMembers, setAdminTournamentTeamMembers] = useState<TournamentTeamMember[]>([]);
   const [myMatches, setMyMatches] = useState<TournamentMatch[]>([]);
   const [adminTournamentMatches, setAdminTournamentMatches] = useState<TournamentMatch[]>([]);
+  const [bracketMatches, setBracketMatches] = useState<TournamentMatch[]>([]);
   const [generatingMatches, setGeneratingMatches] = useState(false);
   const [showMatchChatModal, setShowMatchChatModal] = useState(false);
   const [chattingMatch, setChattingMatch] = useState<TournamentMatch | null>(null);
@@ -273,6 +280,9 @@ function App() {
         setWallet(null);
         setAttempts([]);
         setActiveAttempt(null);
+        setMyTournamentRegistrations([]);
+        setMyTeamMembers([]);
+        setMyMatches([]);
         setAuthLoading(false);
       }
     });
@@ -461,6 +471,50 @@ function App() {
     const interval = setInterval(() => setAdminClockTick((t) => t + 1), 1000);
     return () => clearInterval(interval);
   }, [adminSection]);
+
+  // No cron/background job in this app -- missed check-in is resolved
+  // opportunistically whenever a signed-in user's match data loads.
+  // attemptedForfeitMatchIds guards against a retry loop: if the RPC call
+  // fails (e.g. it doesn't exist in the DB yet) the refetch below would
+  // otherwise keep finding the same still-unresolved match and firing again
+  // on every render.
+  const attemptedForfeitMatchIds = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!user) return;
+    const eligible = myMatches.filter((m) =>
+      !attemptedForfeitMatchIds.current.has(m.id)
+      && m.match_type === 'bracket'
+      && m.status !== 'completed'
+      && !!m.scheduled_time
+      && new Date(m.scheduled_time).getTime() < Date.now()
+      && (m.participants || []).length === 2
+      && (m.participants || []).filter((p) => p.checked_in_at).length === 1
+    );
+    if (eligible.length === 0) return;
+
+    eligible.forEach((m) => attemptedForfeitMatchIds.current.add(m.id));
+    Promise.all(eligible.map((m) => supabase.rpc('resolve_missed_checkin', { p_match_id: m.id })))
+      .then(() => fetchUserData(user.id));
+  }, [myMatches, user]);
+
+  // Same opportunistic-trigger pattern as the missed-check-in forfeit above,
+  // but runs for every visitor (including guests) since it only touches
+  // tournament status, not user-specific data -- whoever loads the public
+  // tournament list first after the deadline passes closes it for everyone.
+  const attemptedRegCloseIds = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const eligible = tournaments.filter((t) =>
+      !attemptedRegCloseIds.current.has(t.id)
+      && t.status === 'registration_open'
+      && !!t.registration_deadline
+      && new Date(t.registration_deadline).getTime() < Date.now()
+    );
+    if (eligible.length === 0) return;
+
+    eligible.forEach((t) => attemptedRegCloseIds.current.add(t.id));
+    Promise.all(eligible.map((t) => supabase.rpc('close_expired_registration', { p_tournament_id: t.id })))
+      .then(() => fetchTournaments());
+  }, [tournaments]);
 
   const formatCountdown = (expiresAt: string) => {
     const diffMs = new Date(expiresAt).getTime() - Date.now();
@@ -909,9 +963,22 @@ function App() {
   const fetchTournaments = async () => {
     const { data } = await supabase
       .from('tournaments')
-      .select('*')
+      .select('*, winner:tournament_registrations!winner_registration_id(team_name, profile:profiles(display_name))')
       .order('created_at', { ascending: false });
     setTournaments((data as Tournament[]) || []);
+  };
+
+  // Public bracket view: once matches are generated, anyone can see the full
+  // round-by-round breakdown (byes, eliminations, everyone) -- same RLS
+  // exception that makes bracket-drawn registrations publicly readable.
+  const fetchTournamentBracket = async (tournamentId: string) => {
+    const { data } = await supabase
+      .from('tournament_matches')
+      .select('*, participants:tournament_match_participants(*, registration:tournament_registrations(*, profile:profiles(*)))')
+      .eq('tournament_id', tournamentId)
+      .order('round', { ascending: true })
+      .order('label', { ascending: true });
+    setBracketMatches((data as TournamentMatch[]) || []);
   };
 
   const handleGoogleLogin = async () => {
@@ -1910,14 +1977,31 @@ function App() {
   };
 
   // --- ADMIN: TOURNAMENTS ---
+  // <input type="datetime-local"> wants "YYYY-MM-DDTHH:mm" in the viewer's
+  // local time, not UTC -- so the stored UTC ISO string needs the timezone
+  // offset baked back in before slicing, or the field would show a time
+  // shifted by the admin's UTC offset.
+  const toLocalInputValue = (iso: string | null): string => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+    return local.toISOString().slice(0, 16);
+  };
+
   const openCreateTournamentModal = () => {
     setEditingTournamentId(null);
     setTournamentForm({
       game_type: 'MLBB',
+      format: 'team',
+      team_size: '5',
       title: '',
       description: '',
       prize_pool: '50000',
-      min_participants: '76',
+      xp_reward: '0',
+      min_participants: '2',
+      status: 'registration_open',
+      start_date: '',
+      registration_deadline: '',
       livestream_url: '',
       rules: '',
     });
@@ -1931,10 +2015,16 @@ function App() {
     setEditingTournamentId(tournament.id);
     setTournamentForm({
       game_type: tournament.game_type,
+      format: tournament.registration_unit === 'team' ? 'team' : 'solo',
+      team_size: String(tournament.team_size),
       title: tournament.title,
       description: tournament.description || '',
       prize_pool: String(tournament.prize_pool),
+      xp_reward: String(tournament.xp_reward),
       min_participants: String(tournament.min_participants),
+      status: tournament.status,
+      start_date: toLocalInputValue(tournament.start_date),
+      registration_deadline: toLocalInputValue(tournament.registration_deadline),
       livestream_url: tournament.livestream_url || '',
       rules: tournament.rules || '',
     });
@@ -1976,8 +2066,13 @@ function App() {
         title: tournamentForm.title.trim(),
         description: tournamentForm.description.trim() || null,
         prize_pool: Number(tournamentForm.prize_pool) || 0,
+        xp_reward: Number(tournamentForm.xp_reward) || 0,
         min_participants: Number(tournamentForm.min_participants) || 1,
-        registration_unit: tournamentForm.game_type === 'MLBB' ? 'team' : 'player',
+        registration_unit: tournamentForm.format === 'team' ? 'team' : 'player',
+        team_size: tournamentForm.format === 'team' ? (Number(tournamentForm.team_size) || 5) : 1,
+        status: tournamentForm.status,
+        start_date: tournamentForm.start_date ? new Date(tournamentForm.start_date).toISOString() : null,
+        registration_deadline: tournamentForm.registration_deadline ? new Date(tournamentForm.registration_deadline).toISOString() : null,
         livestream_url: tournamentForm.livestream_url.trim() || null,
         rules: tournamentForm.rules.trim() || null,
       };
@@ -2031,13 +2126,13 @@ function App() {
   };
 
   const handleGenerateMatches = async (tournament: Tournament) => {
-    const confirmMsg = tournament.registration_unit === 'team'
+    const confirmMsg = tournament.bracket_style === 'elimination'
       ? 'Generate the bracket now? This locks in the current registrations and cannot be undone.'
       : 'Generate lobbies now? This locks in the current registrations and cannot be undone.';
     if (!window.confirm(confirmMsg)) return;
 
     setGeneratingMatches(true);
-    const { error } = tournament.registration_unit === 'team'
+    const { error } = tournament.bracket_style === 'elimination'
       ? await supabase.rpc('generate_bracket', { p_tournament_id: tournament.id })
       : await supabase.rpc('generate_pubg_lobbies', { p_tournament_id: tournament.id });
     setGeneratingMatches(false);
@@ -2051,7 +2146,7 @@ function App() {
 
   const handleSetScheduledTime = async (matchId: string, tournamentId: string, scheduledTimeLocal: string) => {
     const scheduledTime = scheduledTimeLocal ? new Date(scheduledTimeLocal).toISOString() : null;
-    const { error } = await supabase.from('tournament_matches').update({ scheduled_time: scheduledTime }).eq('id', matchId);
+    const { error } = await supabase.rpc('set_match_scheduled_time', { p_match_id: matchId, p_scheduled_time: scheduledTime });
     if (error) {
       alert(error.message);
     } else {
@@ -2411,6 +2506,8 @@ function App() {
               handleCheckInForMatch={handleCheckInForMatch}
               openMatchChat={openMatchChat}
               openSubmitResultModal={openSubmitResultModal}
+              bracketMatches={bracketMatches}
+              fetchTournamentBracket={fetchTournamentBracket}
             />
           )}
 
@@ -2668,6 +2765,7 @@ function App() {
       {showTeamRosterModal && rosterManagingRegistration && (
         <TeamRosterModal
           rosterManagingRegistration={rosterManagingRegistration}
+          teamSize={tournaments.find((t) => t.id === rosterManagingRegistration.tournament_id)?.team_size ?? 5}
           myTeamMembers={myTeamMembers}
           setShowTeamRosterModal={setShowTeamRosterModal}
           playerSearchQuery={playerSearchQuery}

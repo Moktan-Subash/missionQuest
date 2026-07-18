@@ -1,12 +1,20 @@
 export interface TournamentFormState {
-  game_type: 'MLBB' | 'PUBG';
+  game_type: 'MLBB' | 'PUBG' | 'FREEFIRE' | 'COD' | 'CR';
+  format: 'solo' | 'team';
+  team_size: string;
   title: string;
   description: string;
   prize_pool: string;
+  xp_reward: string;
   min_participants: string;
+  status: 'upcoming' | 'registration_open' | 'ongoing' | 'completed' | 'cancelled';
+  start_date: string;
+  registration_deadline: string;
   livestream_url: string;
   rules: string;
 }
+
+const STATUS_OPTIONS: TournamentFormState['status'][] = ['upcoming', 'registration_open', 'ongoing', 'completed', 'cancelled'];
 
 interface TournamentFormModalProps {
   setShowTournamentFormModal: (show: boolean) => void;
@@ -54,19 +62,49 @@ function TournamentFormModal({
               className="form-control"
               value={tournamentForm.game_type}
               disabled={!!editingTournamentId}
-              onChange={(e) => {
-                const game_type = e.target.value as 'MLBB' | 'PUBG';
-                setTournamentForm({
-                  ...tournamentForm,
-                  game_type,
-                  min_participants: game_type === 'MLBB' ? '76' : '500',
-                });
-              }}
+              onChange={(e) => setTournamentForm({
+                ...tournamentForm,
+                game_type: e.target.value as TournamentFormState['game_type'],
+              })}
             >
-              <option value="MLBB">Mobile Legends (team of 5)</option>
-              <option value="PUBG">PUBG Mobile (solo)</option>
+              <option value="MLBB">Mobile Legends</option>
+              <option value="PUBG">PUBG Mobile</option>
+              <option value="FREEFIRE">Free Fire</option>
+              <option value="COD">Call of Duty Mobile</option>
+              <option value="CR">Clash Royale</option>
             </select>
           </div>
+
+          <div className="form-group">
+            <label className="form-label">Format</label>
+            <select
+              className="form-control"
+              value={tournamentForm.format}
+              disabled={!!editingTournamentId}
+              onChange={(e) => setTournamentForm({
+                ...tournamentForm,
+                format: e.target.value as 'solo' | 'team',
+              })}
+            >
+              <option value="solo">Solo (1v1)</option>
+              <option value="team">Team vs Team</option>
+            </select>
+          </div>
+
+          {tournamentForm.format === 'team' && (
+            <div className="form-group">
+              <label className="form-label">Squad Size</label>
+              <input
+                type="number"
+                className="form-control"
+                required
+                min="2"
+                disabled={!!editingTournamentId}
+                value={tournamentForm.team_size}
+                onChange={(e) => setTournamentForm({ ...tournamentForm, team_size: e.target.value })}
+              />
+            </div>
+          )}
 
           <div className="form-group">
             <label className="form-label">Title</label>
@@ -102,7 +140,18 @@ function TournamentFormModal({
               />
             </div>
             <div className="form-group" style={{ flex: 1 }}>
-              <label className="form-label">Min {tournamentForm.game_type === 'MLBB' ? 'Teams' : 'Players'}</label>
+              <label className="form-label">XP Reward</label>
+              <input
+                type="number"
+                className="form-control"
+                required
+                min="0"
+                value={tournamentForm.xp_reward}
+                onChange={(e) => setTournamentForm({ ...tournamentForm, xp_reward: e.target.value })}
+              />
+            </div>
+            <div className="form-group" style={{ flex: 1 }}>
+              <label className="form-label">Min {tournamentForm.format === 'team' ? 'Teams' : 'Players'}</label>
               <input
                 type="number"
                 className="form-control"
@@ -110,6 +159,40 @@ function TournamentFormModal({
                 min="1"
                 value={tournamentForm.min_participants}
                 onChange={(e) => setTournamentForm({ ...tournamentForm, min_participants: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Status</label>
+            <select
+              className="form-control"
+              value={tournamentForm.status}
+              onChange={(e) => setTournamentForm({ ...tournamentForm, status: e.target.value as TournamentFormState['status'] })}
+            >
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s} value={s}>{s.replace('_', ' ')}</option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.75rem' }}>
+            <div className="form-group" style={{ flex: 1 }}>
+              <label className="form-label">Registration Deadline</label>
+              <input
+                type="datetime-local"
+                className="form-control"
+                value={tournamentForm.registration_deadline}
+                onChange={(e) => setTournamentForm({ ...tournamentForm, registration_deadline: e.target.value })}
+              />
+            </div>
+            <div className="form-group" style={{ flex: 1 }}>
+              <label className="form-label">Start Date</label>
+              <input
+                type="datetime-local"
+                className="form-control"
+                value={tournamentForm.start_date}
+                onChange={(e) => setTournamentForm({ ...tournamentForm, start_date: e.target.value })}
               />
             </div>
           </div>

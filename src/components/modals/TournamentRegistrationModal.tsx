@@ -47,7 +47,7 @@ function TournamentRegistrationModal({
                 onChange={(e) => setTournamentRegForm({ ...tournamentRegForm, team_name: e.target.value })}
               />
               <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginTop: '0.5rem' }}>
-                You'll be the team captain. After creating your team, you can search for and add up to 4 more verified players.
+                You'll be the team captain. After creating your team, you can search for and add up to {registeringTournament.team_size - 1} more verified players.
               </p>
             </div>
           ) : (

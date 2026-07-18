@@ -609,6 +609,20 @@
     opacity: 1;
     pointer-events: auto;
   }
+
+  /* Same hover-reveal behavior as .btn-accept, but keeps whatever button
+     style (color, etc.) it's combined with instead of forcing the blue
+     mission-accept look -- used for the tournament card's CTA. */
+  .tournament-cta {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+  }
+
+  .mission-card:hover .tournament-cta {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 /* Active Mission Banner */
@@ -1392,6 +1406,21 @@
   box-shadow: 0 0 24px rgba(251, 146, 60, 0.08);
 }
 
+.tournament-card-freefire {
+  border-color: rgba(239, 68, 68, 0.3);
+  box-shadow: 0 0 24px rgba(239, 68, 68, 0.08);
+}
+
+.tournament-card-cod {
+  border-color: rgba(132, 204, 22, 0.3);
+  box-shadow: 0 0 24px rgba(132, 204, 22, 0.08);
+}
+
+.tournament-card-cr {
+  border-color: rgba(168, 85, 247, 0.3);
+  box-shadow: 0 0 24px rgba(168, 85, 247, 0.08);
+}
+
 .tournament-card-header {
   display: flex;
   justify-content: space-between;
@@ -1442,6 +1471,18 @@
   background: linear-gradient(90deg, #FB923C, #F59E0B);
 }
 
+.tournament-card-freefire .tournament-progress-fill {
+  background: linear-gradient(90deg, #EF4444, #F87171);
+}
+
+.tournament-card-cod .tournament-progress-fill {
+  background: linear-gradient(90deg, #84CC16, #A3E635);
+}
+
+.tournament-card-cr .tournament-progress-fill {
+  background: linear-gradient(90deg, #A855F7, #C084FC);
+}
+
 .tournament-progress-fill.min-reached {
   background: linear-gradient(90deg, #10B981, #4ADE80);
 }
@@ -1465,6 +1506,32 @@
   border-radius: 10px;
   padding: 12px 14px;
   font-size: 0.85rem;
+}
+
+.tournament-history-result {
+  font-size: 0.8rem;
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+.tournament-history-result.won {
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: var(--success);
+  font-weight: 700;
+}
+
+.tournament-history-result.lost {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+}
+
+.tournament-history-result.neutral {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed var(--border-color);
+  color: var(--text-dim);
+  font-size: 0.75rem;
 }
 
 .tournament-promo-banner {

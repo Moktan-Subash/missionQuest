@@ -136,16 +136,19 @@ export interface Feedback {
   profile?: Profile;
 }
 
-export const GAME_OPTIONS = ['Mobile Legends', 'PUBG Mobile', 'Call of Duty Mobile', 'League of Legends', 'Free Fire'];
+export const GAME_OPTIONS = ['Mobile Legends', 'PUBG Mobile', 'Call of Duty Mobile', 'League of Legends', 'Free Fire', 'Clash Royale'];
 
 export interface Tournament {
   id: string;
-  game_type: 'MLBB' | 'PUBG';
+  game_type: 'MLBB' | 'PUBG' | 'FREEFIRE' | 'COD' | 'CR';
   title: string;
   description: string | null;
   prize_pool: number;
+  xp_reward: number;
   min_participants: number;
   registration_unit: 'team' | 'player';
+  team_size: number;
+  bracket_style: 'elimination' | 'battle_royale';
   status: 'upcoming' | 'registration_open' | 'ongoing' | 'completed' | 'cancelled';
   start_date: string | null;
   registration_deadline: string | null;
@@ -153,6 +156,9 @@ export interface Tournament {
   rules: string | null;
   banner_url: string | null;
   registered_count: number;
+  winner_registration_id: string | null;
+  completed_at: string | null;
+  winner?: { team_name: string | null; profile?: { display_name: string | null } | null } | null;
   created_by: string | null;
   created_at: string;
 }
@@ -224,6 +230,9 @@ export interface TournamentMatchMessage {
 export const TOURNAMENT_GAME_ID_TYPE: Record<Tournament['game_type'], string> = {
   MLBB: 'Mobile Legends',
   PUBG: 'PUBG Mobile',
+  FREEFIRE: 'Free Fire',
+  COD: 'Call of Duty Mobile',
+  CR: 'Clash Royale',
 };
 
 export interface MissionEarningBreakdown {
