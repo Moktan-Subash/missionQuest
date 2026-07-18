@@ -1,9 +1,10 @@
-import type { Notification } from '../types';
+import type { Notification, Tab } from '../types';
 
 interface NotificationsScreenProps {
   notifications: Notification[];
   handleMarkNotificationRead: (notificationId: string) => void;
   handleMarkAllNotificationsRead: () => void;
+  handleTabClick: (tab: Tab) => void;
 }
 
 const CATEGORY_ICON: Record<Notification['category'], string> = {
@@ -12,6 +13,27 @@ const CATEGORY_ICON: Record<Notification['category'], string> = {
   payout: '💰',
   deposit: '💵',
   membership: '⭐',
+  tournament: '🏆',
+  game_id: '🎮',
+  support: '🛟',
+  admin: '🛠️',
+  account: '👋',
+};
+
+// Where clicking a notification should take you. Admin-facing categories
+// (new deposit/payout/membership/mission-submission/support-ticket/game-ID
+// review alerts) all land on the admin dashboard.
+const CATEGORY_TAB: Record<Notification['category'], Tab> = {
+  broadcast: 'missions',
+  mission: 'missions',
+  payout: 'wallet',
+  deposit: 'wallet',
+  membership: 'membership',
+  tournament: 'tournaments',
+  game_id: 'profile',
+  support: 'profile',
+  admin: 'admin',
+  account: 'profile',
 };
 
 function timeAgo(iso: string): string {
@@ -25,8 +47,13 @@ function timeAgo(iso: string): string {
   return `${days}d ago`;
 }
 
-function NotificationsScreen({ notifications, handleMarkNotificationRead, handleMarkAllNotificationsRead }: NotificationsScreenProps) {
+function NotificationsScreen({ notifications, handleMarkNotificationRead, handleMarkAllNotificationsRead, handleTabClick }: NotificationsScreenProps) {
   const unreadCount = notifications.filter((n) => !n.is_read).length;
+
+  const openNotification = (n: Notification) => {
+    if (!n.is_read) handleMarkNotificationRead(n.id);
+    handleTabClick(CATEGORY_TAB[n.category]);
+  };
 
   return (
     <div className="screen animate-fade-in">
@@ -48,7 +75,7 @@ function NotificationsScreen({ notifications, handleMarkNotificationRead, handle
           {notifications.map((n) => (
             <div
               key={n.id}
-              onClick={() => !n.is_read && handleMarkNotificationRead(n.id)}
+              onClick={() => openNotification(n)}
               className="card"
               style={{
                 textAlign: 'left',
@@ -56,7 +83,7 @@ function NotificationsScreen({ notifications, handleMarkNotificationRead, handle
                 gap: '0.85rem',
                 alignItems: 'flex-start',
                 padding: '1rem 1.25rem',
-                cursor: n.is_read ? 'default' : 'pointer',
+                cursor: 'pointer',
                 borderColor: n.is_read ? 'var(--border-color)' : 'var(--accent)',
                 background: n.is_read ? undefined : 'rgba(63, 131, 248, 0.05)',
               }}

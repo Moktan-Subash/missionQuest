@@ -1515,6 +1515,7 @@ BEGIN
 
             INSERT INTO public.tournament_match_participants (match_id, registration_id)
             VALUES (v_match_id, v_reg_ids[i]), (v_match_id, v_reg_ids[i + 1]);
+            PERFORM public._notify_match_participants(v_match_id);
         ELSE
             INSERT INTO public.tournament_matches (tournament_id, round, label, match_type, best_of, status, winner_registration_id)
             VALUES (p_tournament_id, 1, 'Round 1 - Bye', 'bracket', 1, 'completed', v_reg_ids[i])
@@ -1522,6 +1523,7 @@ BEGIN
 
             INSERT INTO public.tournament_match_participants (match_id, registration_id)
             VALUES (v_match_id, v_reg_ids[i]);
+            PERFORM public._notify_match_participants(v_match_id);
         END IF;
 
         i := i + 2;
@@ -1826,6 +1828,12 @@ BEGIN
         result_submitted_by = v_caller,
         result_submitted_at = NOW()
     WHERE id = p_match_id;
+
+    INSERT INTO public.notifications (user_id, title, body, category, related_id)
+    SELECT ttm.user_id, 'Result submitted', 'Your opponent submitted a result for ' || v_match.label || '. Awaiting admin confirmation.', 'tournament', v_match.tournament_id
+    FROM public.tournament_match_participants tmp
+    JOIN public.tournament_team_members ttm ON ttm.registration_id = tmp.registration_id AND ttm.is_captain = true
+    WHERE tmp.match_id = p_match_id AND tmp.registration_id != v_registration_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -1897,6 +1905,7 @@ BEGIN
 
             INSERT INTO public.tournament_match_participants (match_id, registration_id)
             VALUES (v_match_id, v_winner_ids[i]), (v_match_id, v_winner_ids[i + 1]);
+            PERFORM public._notify_match_participants(v_match_id);
         ELSE
             INSERT INTO public.tournament_matches (tournament_id, round, label, match_type, best_of, status, winner_registration_id)
             VALUES (p_tournament_id, p_round + 1, 'Round ' || (p_round + 1) || ' - Bye', 'bracket', 1, 'completed', v_winner_ids[i])
@@ -1904,6 +1913,7 @@ BEGIN
 
             INSERT INTO public.tournament_match_participants (match_id, registration_id)
             VALUES (v_match_id, v_winner_ids[i]);
+            PERFORM public._notify_match_participants(v_match_id);
         END IF;
 
         i := i + 2;
@@ -1938,12 +1948,13 @@ DECLARE
     v_xp_reward INTEGER;
     v_member_count INTEGER;
     v_share NUMERIC(10,2);
+    v_title TEXT;
 BEGIN
     IF EXISTS (SELECT 1 FROM public.tournaments WHERE id = p_tournament_id AND winner_registration_id IS NOT NULL) THEN
         RAISE EXCEPTION 'This tournament has already been paid out';
     END IF;
 
-    SELECT prize_pool, xp_reward INTO v_prize_pool, v_xp_reward FROM public.tournaments WHERE id = p_tournament_id;
+    SELECT prize_pool, xp_reward, title INTO v_prize_pool, v_xp_reward, v_title FROM public.tournaments WHERE id = p_tournament_id;
 
     SELECT COUNT(*) INTO v_member_count
     FROM public.tournament_team_members
@@ -1970,6 +1981,15 @@ BEGIN
                 WHERE registration_id = p_winner_registration_id
             );
         END IF;
+
+        INSERT INTO public.notifications (user_id, title, body, category, related_id)
+        SELECT user_id, '🏆 Tournament Champion!',
+            'You won "' || v_title || '"! Rs. ' || v_share || ' prize'
+            || (CASE WHEN v_xp_reward > 0 THEN ' + ' || v_xp_reward || ' XP' ELSE '' END)
+            || ' credited to your account.',
+            'tournament', p_tournament_id
+        FROM public.tournament_team_members
+        WHERE registration_id = p_winner_registration_id;
     END IF;
 
     UPDATE public.tournaments
@@ -2025,6 +2045,7 @@ BEGIN
     SET status = 'completed', winner_registration_id = p_winner_registration_id
     WHERE id = p_match_id;
 
+    PERFORM public._notify_match_result(p_match_id, p_winner_registration_id);
     PERFORM public._advance_bracket_round_internal(v_match.tournament_id, v_match.round);
 
     -- 'Final' is only ever the label of the one match that decides the whole
@@ -2292,6 +2313,16 @@ BEGIN
         v_match.tournament_id
     FROM public.tournament_team_members ttm
     WHERE ttm.registration_id = v_missed_reg;
+
+    INSERT INTO public.notifications (user_id, title, body, category, related_id)
+    SELECT
+        ttm.user_id,
+        '🏆 You won!',
+        'Your opponent missed check-in for ' || v_match.label || ' in "' || v_tournament.title || '" -- you win by forfeit.',
+        'tournament',
+        v_match.tournament_id
+    FROM public.tournament_team_members ttm
+    WHERE ttm.registration_id = v_winner_reg;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -2312,13 +2343,22 @@ ALTER TABLE public.tournaments ADD COLUMN IF NOT EXISTS xp_reward INTEGER NOT NU
 -- only the registration window itself closes automatically.
 CREATE OR REPLACE FUNCTION public.close_expired_registration(p_tournament_id UUID)
 RETURNS void AS $$
+DECLARE
+    v_title TEXT;
 BEGIN
     UPDATE public.tournaments
     SET status = 'ongoing'
     WHERE id = p_tournament_id
       AND status = 'registration_open'
       AND registration_deadline IS NOT NULL
-      AND registration_deadline < NOW();
+      AND registration_deadline < NOW()
+    RETURNING title INTO v_title;
+
+    IF v_title IS NOT NULL THEN
+        INSERT INTO public.notifications (user_id, title, body, category, related_id)
+        SELECT user_id, 'Registration closed', 'Registration for "' || v_title || '" has closed. Bracket coming soon!', 'tournament', p_tournament_id
+        FROM public.tournament_registrations WHERE tournament_id = p_tournament_id;
+    END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -2338,4 +2378,461 @@ CREATE POLICY "Bracket participants are publicly viewable" ON public.tournament_
             SELECT 1 FROM public.tournament_match_participants tmp
             WHERE tmp.registration_id = tournament_registrations.id
         )
+    );
+
+
+-- 28. NOTIFICATIONS EXPANSION: automatic, real-time notifications for every
+-- meaningful event across the app (previously only mission approval/
+-- rejection, deposit/payout/membership approval/rejection, and the tournament
+-- missed-check-in forfeit fired automatically -- everything else was silent).
+-- Delivery is already solved generically: the client has one Realtime
+-- subscription on `notifications` filtered to the signed-in user, so any row
+-- inserted here shows up live with no refresh, regardless of category.
+--
+-- Bug fix found along the way: handleCancelMission (client) sets
+-- mission_attempts.status = 'cancelled', but that value was never in the
+-- CHECK constraint -- cancelling a mission has been silently failing at the
+-- database level. Fixing it here since the new "mission cancelled"
+-- notification needs it to actually work.
+ALTER TABLE public.mission_attempts DROP CONSTRAINT IF EXISTS mission_attempts_status_check;
+ALTER TABLE public.mission_attempts ADD CONSTRAINT mission_attempts_status_check
+    CHECK (status IN ('active', 'pending_review', 'approved', 'rejected', 'expired', 'cancelled'));
+
+ALTER TABLE public.notifications DROP CONSTRAINT IF EXISTS notifications_category_check;
+ALTER TABLE public.notifications ADD CONSTRAINT notifications_category_check
+    CHECK (category IN ('broadcast', 'mission', 'payout', 'deposit', 'membership', 'tournament', 'game_id', 'support', 'admin', 'account'));
+
+-- Welcome notification on signup. Redefines handle_new_user (already
+-- creates the profile + wallet rows in the same trigger) rather than adding
+-- a second trigger on auth.users, since profiles must exist first for the
+-- notifications.user_id FK and this keeps account-creation logic in one place.
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO public.profiles (id, display_name, avatar_url)
+    VALUES (
+        new.id,
+        COALESCE(new.raw_user_meta_data->>'full_name', SPLIT_PART(new.email, '@', 1)),
+        new.raw_user_meta_data->>'avatar_url'
+    );
+
+    INSERT INTO public.wallets (id, balance)
+    VALUES (new.id, 0.00);
+
+    INSERT INTO public.notifications (user_id, title, body, category)
+    VALUES (new.id, 'Welcome to MissionQuest!', 'Complete missions, join tournaments, and earn real cash rewards. Check out what''s live right now.', 'account');
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Game ID verification result to the player, and a manual-review flag to
+-- admins when the AI attempted verification but couldn't auto-confirm
+-- (ai_extracted_id gets set by the verify-game-id Edge Function even when
+-- it leaves status at 'pending' for a human to double-check).
+CREATE OR REPLACE FUNCTION public.notify_game_id_status_change()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.status = 'verified' AND OLD.status != 'verified' THEN
+        INSERT INTO public.notifications (user_id, title, body, category, related_id)
+        VALUES (NEW.user_id, 'Game ID verified', 'Your ' || NEW.game_type || ' ID "' || NEW.in_game_id || '" has been verified.', 'game_id', NEW.id);
+    ELSIF NEW.status = 'rejected' AND OLD.status != 'rejected' THEN
+        INSERT INTO public.notifications (user_id, title, body, category, related_id)
+        VALUES (NEW.user_id, 'Game ID rejected', COALESCE('Your ' || NEW.game_type || ' ID was rejected: ' || NEW.admin_notes, 'Your ' || NEW.game_type || ' ID verification was rejected.'), 'game_id', NEW.id);
+    END IF;
+
+    IF NEW.status = 'pending' AND NEW.ai_extracted_id IS NOT NULL
+       AND (OLD.ai_extracted_id IS NULL OR OLD.ai_extracted_id != NEW.ai_extracted_id) THEN
+        INSERT INTO public.notifications (user_id, title, body, category, related_id)
+        SELECT id, 'Game ID needs manual review', NEW.game_type || ' ID from a player needs manual verification (AI could not auto-confirm).', 'admin', NEW.id
+        FROM public.profiles WHERE role IN ('admin', 'moderator');
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_game_id_status_notify ON public.game_id_links;
+CREATE TRIGGER on_game_id_status_notify
+    AFTER UPDATE ON public.game_id_links
+    FOR EACH ROW EXECUTE FUNCTION public.notify_game_id_status_change();
+
+-- New mission published -> broadcast to everyone.
+CREATE OR REPLACE FUNCTION public.notify_new_mission()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.is_active THEN
+        INSERT INTO public.notifications (user_id, title, body, category, related_id)
+        SELECT id, 'New mission available!', '"' || NEW.title || '" is live -- Rs. ' || NEW.reward_amount || ' reward.', 'mission', NEW.id
+        FROM public.profiles;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_mission_created_notify ON public.missions;
+CREATE TRIGGER on_mission_created_notify
+    AFTER INSERT ON public.missions
+    FOR EACH ROW EXECUTE FUNCTION public.notify_new_mission();
+
+-- Pre-existing gap, found while wiring this trigger up: missions never had
+-- an INSERT/UPDATE policy at all -- the admin "New Mission" form's direct
+-- client insert/update has been silently blocked by RLS this whole time
+-- (and the SELECT policy hid inactive missions from admins too, since it
+-- only ever allowed is_active = true with no admin fallback).
+DROP POLICY IF EXISTS "Active missions are viewable by everyone" ON public.missions;
+CREATE POLICY "Active missions are viewable by everyone" ON public.missions
+    FOR SELECT USING (is_active = true OR public.is_admin());
+
+DROP POLICY IF EXISTS "Admins can create missions" ON public.missions;
+CREATE POLICY "Admins can create missions" ON public.missions
+    FOR INSERT WITH CHECK (public.is_admin());
+
+DROP POLICY IF EXISTS "Admins can update missions" ON public.missions;
+CREATE POLICY "Admins can update missions" ON public.missions
+    FOR UPDATE USING (public.is_admin());
+
+-- Mission accepted/started -> confirmation to the player.
+CREATE OR REPLACE FUNCTION public.notify_mission_started()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO public.notifications (user_id, title, body, category, related_id)
+    SELECT NEW.user_id, 'Mission started', '"' || m.title || '" is underway -- you have 30 minutes to submit proof.', 'mission', NEW.id
+    FROM public.missions m WHERE m.id = NEW.mission_id;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_mission_attempt_started_notify ON public.mission_attempts;
+CREATE TRIGGER on_mission_attempt_started_notify
+    AFTER INSERT ON public.mission_attempts
+    FOR EACH ROW EXECUTE FUNCTION public.notify_mission_started();
+
+-- Redefines the existing approved/rejected notifier (same trigger already
+-- points at this function name, so no trigger changes needed) to also cover
+-- submitted-for-review, expired, and cancelled -- plus alerts admins when a
+-- submission needs review.
+CREATE OR REPLACE FUNCTION public.notify_mission_status_change()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.status = 'approved' AND OLD.status != 'approved' THEN
+        INSERT INTO public.notifications (user_id, title, body, category, related_id)
+        VALUES (NEW.user_id, 'Mission approved!', 'Your mission submission was approved and the reward has been credited to your wallet.', 'mission', NEW.id);
+    ELSIF NEW.status = 'rejected' AND OLD.status != 'rejected' THEN
+        INSERT INTO public.notifications (user_id, title, body, category, related_id)
+        VALUES (NEW.user_id, 'Mission rejected', COALESCE('Your mission submission was rejected: ' || NEW.rejection_reason, 'Your mission submission was rejected.'), 'mission', NEW.id);
+    ELSIF NEW.status = 'pending_review' AND OLD.status != 'pending_review' THEN
+        INSERT INTO public.notifications (user_id, title, body, category, related_id)
+        VALUES (NEW.user_id, 'Proof submitted', 'Your mission proof was submitted and is awaiting admin review.', 'mission', NEW.id);
+
+        INSERT INTO public.notifications (user_id, title, body, category, related_id)
+        SELECT id, 'New mission submission', 'A player submitted proof for review.', 'admin', NEW.id
+        FROM public.profiles WHERE role IN ('admin', 'moderator');
+    ELSIF NEW.status = 'expired' AND OLD.status != 'expired' THEN
+        INSERT INTO public.notifications (user_id, title, body, category, related_id)
+        VALUES (NEW.user_id, 'Mission expired', 'Your mission attempt expired before proof was submitted.', 'mission', NEW.id);
+    ELSIF NEW.status = 'cancelled' AND OLD.status != 'cancelled' THEN
+        INSERT INTO public.notifications (user_id, title, body, category, related_id)
+        VALUES (NEW.user_id, 'Mission cancelled', 'You cancelled this mission attempt. It still counts toward today''s mission limit.', 'mission', NEW.id);
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Admin alerts for every new request that needs review.
+CREATE OR REPLACE FUNCTION public.notify_new_deposit_request()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO public.notifications (user_id, title, body, category, related_id)
+    SELECT id, 'New deposit request', 'A player submitted a deposit of Rs. ' || NEW.amount || ' for review.', 'admin', NEW.id
+    FROM public.profiles WHERE role IN ('admin', 'moderator');
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_deposit_created_notify ON public.deposit_requests;
+CREATE TRIGGER on_deposit_created_notify
+    AFTER INSERT ON public.deposit_requests
+    FOR EACH ROW EXECUTE FUNCTION public.notify_new_deposit_request();
+
+CREATE OR REPLACE FUNCTION public.notify_new_payout_request()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO public.notifications (user_id, title, body, category, related_id)
+    SELECT id, 'New payout request', 'A player requested a withdrawal of Rs. ' || NEW.amount || '.', 'admin', NEW.id
+    FROM public.profiles WHERE role IN ('admin', 'moderator');
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_payout_created_notify ON public.payout_requests;
+CREATE TRIGGER on_payout_created_notify
+    AFTER INSERT ON public.payout_requests
+    FOR EACH ROW EXECUTE FUNCTION public.notify_new_payout_request();
+
+CREATE OR REPLACE FUNCTION public.notify_new_membership_request()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO public.notifications (user_id, title, body, category, related_id)
+    SELECT id, 'New membership request', 'A player requested an upgrade to ' || UPPER(NEW.tier) || '.', 'admin', NEW.id
+    FROM public.profiles WHERE role IN ('admin', 'moderator');
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_membership_created_notify ON public.membership_requests;
+CREATE TRIGGER on_membership_created_notify
+    AFTER INSERT ON public.membership_requests
+    FOR EACH ROW EXECUTE FUNCTION public.notify_new_membership_request();
+
+-- Support tickets: new-ticket alert to admins, status-change updates to the player.
+CREATE OR REPLACE FUNCTION public.notify_new_support_ticket()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO public.notifications (user_id, title, body, category, related_id)
+    SELECT id, 'New support ticket', NEW.issue_type || ': a player needs help.', 'admin', NEW.id
+    FROM public.profiles WHERE role IN ('admin', 'moderator');
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_support_ticket_created_notify ON public.support_tickets;
+CREATE TRIGGER on_support_ticket_created_notify
+    AFTER INSERT ON public.support_tickets
+    FOR EACH ROW EXECUTE FUNCTION public.notify_new_support_ticket();
+
+CREATE OR REPLACE FUNCTION public.notify_support_ticket_status_change()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.status = 'in_progress' AND OLD.status != 'in_progress' THEN
+        INSERT INTO public.notifications (user_id, title, body, category, related_id)
+        VALUES (NEW.user_id, 'Support ticket update', 'An admin is now looking into your support ticket.', 'support', NEW.id);
+    ELSIF NEW.status = 'resolved' AND OLD.status != 'resolved' THEN
+        INSERT INTO public.notifications (user_id, title, body, category, related_id)
+        VALUES (NEW.user_id, 'Support ticket resolved', COALESCE(NEW.admin_notes, 'Your support ticket has been resolved.'), 'support', NEW.id);
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_support_ticket_status_notify ON public.support_tickets;
+CREATE TRIGGER on_support_ticket_status_notify
+    AFTER UPDATE ON public.support_tickets
+    FOR EACH ROW EXECUTE FUNCTION public.notify_support_ticket_status_change();
+
+-- 29. TOURNAMENT NOTIFICATIONS.
+-- New tournament opens for registration -> broadcast to everyone.
+CREATE OR REPLACE FUNCTION public.notify_new_tournament()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.status = 'registration_open' THEN
+        INSERT INTO public.notifications (user_id, title, body, category, related_id)
+        SELECT id, 'New tournament: ' || NEW.title, 'Registration is open -- Rs. ' || NEW.prize_pool || ' prize pool. Sign up now!', 'tournament', NEW.id
+        FROM public.profiles;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_tournament_created_notify ON public.tournaments;
+CREATE TRIGGER on_tournament_created_notify
+    AFTER INSERT ON public.tournaments
+    FOR EACH ROW EXECUTE FUNCTION public.notify_new_tournament();
+
+-- Tournament cancelled -> notify everyone who registered.
+CREATE OR REPLACE FUNCTION public.notify_tournament_status_change()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.status = 'cancelled' AND OLD.status != 'cancelled' THEN
+        INSERT INTO public.notifications (user_id, title, body, category, related_id)
+        SELECT user_id, 'Tournament cancelled', '"' || NEW.title || '" has been cancelled.', 'tournament', NEW.id
+        FROM public.tournament_registrations WHERE tournament_id = NEW.id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_tournament_status_notify ON public.tournaments;
+CREATE TRIGGER on_tournament_status_notify
+    AFTER UPDATE ON public.tournaments
+    FOR EACH ROW EXECUTE FUNCTION public.notify_tournament_status_change();
+
+-- Registration confirmed.
+CREATE OR REPLACE FUNCTION public.notify_tournament_registration()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_title TEXT;
+BEGIN
+    SELECT title INTO v_title FROM public.tournaments WHERE id = NEW.tournament_id;
+    INSERT INTO public.notifications (user_id, title, body, category, related_id)
+    VALUES (NEW.user_id, 'Registration confirmed', 'You''re registered for "' || v_title || '".', 'tournament', NEW.tournament_id);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_tournament_registration_notify ON public.tournament_registrations;
+CREATE TRIGGER on_tournament_registration_notify
+    AFTER INSERT ON public.tournament_registrations
+    FOR EACH ROW EXECUTE FUNCTION public.notify_tournament_registration();
+
+-- Added to / removed from a team roster by the captain. Skips the captain's
+-- own row (added at registration time, they already got the registration-
+-- confirmed notification above).
+CREATE OR REPLACE FUNCTION public.notify_team_member_added()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_title TEXT;
+BEGIN
+    IF NOT NEW.is_captain THEN
+        SELECT title INTO v_title FROM public.tournaments WHERE id = NEW.tournament_id;
+        INSERT INTO public.notifications (user_id, title, body, category, related_id)
+        VALUES (NEW.user_id, 'Added to a team', 'You were added to a team roster for "' || v_title || '".', 'tournament', NEW.tournament_id);
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_team_member_added_notify ON public.tournament_team_members;
+CREATE TRIGGER on_team_member_added_notify
+    AFTER INSERT ON public.tournament_team_members
+    FOR EACH ROW EXECUTE FUNCTION public.notify_team_member_added();
+
+CREATE OR REPLACE FUNCTION public.notify_team_member_removed()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_title TEXT;
+BEGIN
+    IF NOT OLD.is_captain THEN
+        SELECT title INTO v_title FROM public.tournaments WHERE id = OLD.tournament_id;
+        INSERT INTO public.notifications (user_id, title, body, category, related_id)
+        VALUES (OLD.user_id, 'Removed from team', 'You were removed from a team roster for "' || v_title || '".', 'tournament', OLD.tournament_id);
+    END IF;
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_team_member_removed_notify ON public.tournament_team_members;
+CREATE TRIGGER on_team_member_removed_notify
+    AFTER DELETE ON public.tournament_team_members
+    FOR EACH ROW EXECUTE FUNCTION public.notify_team_member_removed();
+
+-- Shared helper: notifies both participants of a freshly-created match who
+-- they're facing (or that they got a bye). Called from generate_bracket and
+-- _advance_bracket_round_internal right after each match's participants are
+-- inserted, so it covers round 1 and every later round with one function.
+CREATE OR REPLACE FUNCTION public._notify_match_participants(p_match_id UUID)
+RETURNS void AS $$
+DECLARE
+    v_match public.tournament_matches;
+    v_tournament_title TEXT;
+    rec RECORD;
+    v_opponent_name TEXT;
+BEGIN
+    SELECT * INTO v_match FROM public.tournament_matches WHERE id = p_match_id;
+    SELECT title INTO v_tournament_title FROM public.tournaments WHERE id = v_match.tournament_id;
+
+    FOR rec IN
+        SELECT tmp.registration_id, ttm.user_id
+        FROM public.tournament_match_participants tmp
+        JOIN public.tournament_team_members ttm ON ttm.registration_id = tmp.registration_id AND ttm.is_captain = true
+        WHERE tmp.match_id = p_match_id
+    LOOP
+        IF v_match.status = 'completed' THEN
+            INSERT INTO public.notifications (user_id, title, body, category, related_id)
+            VALUES (rec.user_id, 'Bye -- you advance!', 'No opponent this round in "' || v_tournament_title || '" -- you advance automatically.', 'tournament', v_match.tournament_id);
+        ELSE
+            SELECT COALESCE(r.team_name, p.display_name, 'your opponent') INTO v_opponent_name
+            FROM public.tournament_match_participants tmp2
+            JOIN public.tournament_registrations r ON r.id = tmp2.registration_id
+            LEFT JOIN public.profiles p ON p.id = r.user_id
+            WHERE tmp2.match_id = p_match_id AND tmp2.registration_id != rec.registration_id
+            LIMIT 1;
+
+            INSERT INTO public.notifications (user_id, title, body, category, related_id)
+            VALUES (rec.user_id, 'Your match is set', v_match.label || ' in "' || v_tournament_title || '" -- you''re facing ' || v_opponent_name || '.', 'tournament', v_match.tournament_id);
+        END IF;
+    END LOOP;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Shared helper: notifies both participants of a decided match (win/loss).
+-- Called from confirm_match_result. resolve_missed_checkin has its own
+-- distinct wording for the forfeiting side, but should still notify the
+-- winner through the same path -- see that function's update below.
+CREATE OR REPLACE FUNCTION public._notify_match_result(p_match_id UUID, p_winner_registration_id UUID)
+RETURNS void AS $$
+DECLARE
+    v_match public.tournament_matches;
+    v_tournament_title TEXT;
+    rec RECORD;
+BEGIN
+    SELECT * INTO v_match FROM public.tournament_matches WHERE id = p_match_id;
+    SELECT title INTO v_tournament_title FROM public.tournaments WHERE id = v_match.tournament_id;
+
+    FOR rec IN
+        SELECT tmp.registration_id, ttm.user_id
+        FROM public.tournament_match_participants tmp
+        JOIN public.tournament_team_members ttm ON ttm.registration_id = tmp.registration_id AND ttm.is_captain = true
+        WHERE tmp.match_id = p_match_id
+    LOOP
+        IF rec.registration_id = p_winner_registration_id THEN
+            INSERT INTO public.notifications (user_id, title, body, category, related_id)
+            VALUES (rec.user_id, '🏆 You won!', 'You won ' || v_match.label || ' in "' || v_tournament_title || '".', 'tournament', v_match.tournament_id);
+        ELSE
+            INSERT INTO public.notifications (user_id, title, body, category, related_id)
+            VALUES (rec.user_id, 'Match result', 'You lost ' || v_match.label || ' in "' || v_tournament_title || '".', 'tournament', v_match.tournament_id);
+        END IF;
+    END LOOP;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Check-in window opening: opportunistic client-triggered reminder, same
+-- no-cron pattern as resolve_missed_checkin / close_expired_registration.
+-- checkin_reminder_sent_at is the idempotency guard against sending it twice.
+ALTER TABLE public.tournament_matches ADD COLUMN IF NOT EXISTS checkin_reminder_sent_at TIMESTAMP WITH TIME ZONE;
+
+CREATE OR REPLACE FUNCTION public.send_checkin_reminder(p_match_id UUID)
+RETURNS void AS $$
+DECLARE
+    v_match public.tournament_matches;
+    v_tournament_title TEXT;
+BEGIN
+    SELECT * INTO v_match FROM public.tournament_matches WHERE id = p_match_id;
+    IF v_match IS NULL OR v_match.checkin_reminder_sent_at IS NOT NULL
+       OR v_match.scheduled_time IS NULL OR v_match.status = 'completed' THEN
+        RETURN;
+    END IF;
+
+    IF NOW() < v_match.scheduled_time - INTERVAL '30 minutes' THEN
+        RETURN;
+    END IF;
+
+    SELECT title INTO v_tournament_title FROM public.tournaments WHERE id = v_match.tournament_id;
+
+    INSERT INTO public.notifications (user_id, title, body, category, related_id)
+    SELECT ttm.user_id, 'Check-in is open', 'Check in now for ' || v_match.label || ' in "' || v_tournament_title || '".', 'tournament', v_match.tournament_id
+    FROM public.tournament_match_participants tmp
+    JOIN public.tournament_team_members ttm ON ttm.registration_id = tmp.registration_id AND ttm.is_captain = true
+    WHERE tmp.match_id = p_match_id AND tmp.checked_in_at IS NULL;
+
+    UPDATE public.tournament_matches SET checkin_reminder_sent_at = NOW() WHERE id = p_match_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- 30. NOTIFICATION RETENTION: unread notifications stick around indefinitely;
+-- once read, they auto-delete 12 hours later. read_at records when that
+-- happened (is_read alone can't tell you how long it's been). The DELETE
+-- policy's USING clause IS the retention rule, not just a permission check --
+-- so the client can safely fire a blanket delete for its own notifications
+-- and RLS narrows it down to exactly the rows that have actually aged out,
+-- nothing else. No RPC/cron needed.
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS read_at TIMESTAMP WITH TIME ZONE;
+
+DROP POLICY IF EXISTS "Users can delete their own expired read notifications" ON public.notifications;
+CREATE POLICY "Users can delete their own expired read notifications" ON public.notifications
+    FOR DELETE USING (
+        auth.uid() = user_id
+        AND read_at IS NOT NULL
+        AND read_at < NOW() - INTERVAL '12 hours'
     );

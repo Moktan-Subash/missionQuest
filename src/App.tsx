@@ -497,6 +497,40 @@ function App() {
       .then(() => fetchUserData(user.id));
   }, [myMatches, user]);
 
+  // Same opportunistic pattern: fires the "check-in is open" notification
+  // once the 30-minute window starts, guarded server-side by
+  // checkin_reminder_sent_at so it can only ever go out once per match.
+  const attemptedCheckinReminderIds = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!user) return;
+    const eligible = myMatches.filter((m) =>
+      !attemptedCheckinReminderIds.current.has(m.id)
+      && m.match_type === 'bracket'
+      && m.status !== 'completed'
+      && !m.checkin_reminder_sent_at
+      && !!m.scheduled_time
+      && new Date(m.scheduled_time).getTime() - Date.now() <= 30 * 60 * 1000
+    );
+    if (eligible.length === 0) return;
+
+    eligible.forEach((m) => attemptedCheckinReminderIds.current.add(m.id));
+    Promise.all(eligible.map((m) => supabase.rpc('send_checkin_reminder', { p_match_id: m.id })))
+      .then(() => fetchUserData(user.id));
+  }, [myMatches, user]);
+
+  // Read notifications auto-delete 12 hours after being read; unread ones
+  // stick around indefinitely. No RPC needed -- the DELETE RLS policy's
+  // USING clause already encodes the exact retention rule, so this blanket
+  // delete only ever actually removes rows that have aged out. Fires once
+  // per login, which is enough to keep the list tidy over time.
+  useEffect(() => {
+    if (!user) return;
+    supabase.from('notifications').delete().eq('user_id', user.id)
+      .then(() => setNotifications((prev) => prev.filter((n) =>
+        !n.read_at || Date.now() - new Date(n.read_at).getTime() < 12 * 60 * 60 * 1000
+      )));
+  }, [user]);
+
   // Same opportunistic-trigger pattern as the missed-check-in forfeit above,
   // but runs for every visitor (including guests) since it only touches
   // tournament status, not user-specific data -- whoever loads the public
@@ -1780,15 +1814,17 @@ function App() {
   };
 
   const handleMarkNotificationRead = async (notificationId: string) => {
-    setNotifications((prev) => prev.map((n) => (n.id === notificationId ? { ...n, is_read: true } : n)));
-    await supabase.from('notifications').update({ is_read: true }).eq('id', notificationId);
+    const readAt = new Date().toISOString();
+    setNotifications((prev) => prev.map((n) => (n.id === notificationId ? { ...n, is_read: true, read_at: readAt } : n)));
+    await supabase.from('notifications').update({ is_read: true, read_at: readAt }).eq('id', notificationId);
   };
 
   const handleMarkAllNotificationsRead = async () => {
     const unreadIds = notifications.filter((n) => !n.is_read).map((n) => n.id);
     if (unreadIds.length === 0) return;
-    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
-    await supabase.from('notifications').update({ is_read: true }).in('id', unreadIds);
+    const readAt = new Date().toISOString();
+    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true, read_at: n.read_at ?? readAt })));
+    await supabase.from('notifications').update({ is_read: true, read_at: readAt }).in('id', unreadIds);
   };
 
   const handleSendBroadcast = async (e: React.FormEvent) => {
@@ -2487,6 +2523,7 @@ function App() {
               notifications={notifications}
               handleMarkNotificationRead={handleMarkNotificationRead}
               handleMarkAllNotificationsRead={handleMarkAllNotificationsRead}
+              handleTabClick={handleTabClick}
             />
           )}
 

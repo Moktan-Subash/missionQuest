@@ -107,9 +107,10 @@ export interface Notification {
   user_id: string;
   title: string;
   body: string;
-  category: 'broadcast' | 'mission' | 'payout' | 'deposit' | 'membership';
+  category: 'broadcast' | 'mission' | 'payout' | 'deposit' | 'membership' | 'tournament' | 'game_id' | 'support' | 'admin' | 'account';
   related_id: string | null;
   is_read: boolean;
+  read_at: string | null;
   created_at: string;
 }
 
@@ -213,6 +214,7 @@ export interface TournamentMatch {
   result_proof_url: string | null;
   result_submitted_by: string | null;
   result_submitted_at: string | null;
+  checkin_reminder_sent_at: string | null;
   created_at: string;
   participants?: TournamentMatchParticipant[];
 }
