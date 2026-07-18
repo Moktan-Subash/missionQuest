@@ -200,6 +200,22 @@
   border-color: rgba(255, 255, 255, 0.05);
 }
 
+@media (max-width: 640px) {
+  .tabs-header {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 4px;
+  }
+  .tabs-header::-webkit-scrollbar { display: none; }
+  .tab-btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+}
+
 /* ---------------- HERO LINEAR SECTION ---------------- */
 .hero-section {
   text-align: center;
@@ -1338,6 +1354,14 @@
   padding: 4px;
   border-radius: 30px;
   gap: 4px;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.game-filters::-webkit-scrollbar {
+  display: none;
 }
 
 .filter-btn {
@@ -1351,6 +1375,8 @@
   border-radius: 30px;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .filter-btn:hover {

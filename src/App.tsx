@@ -2388,7 +2388,7 @@ function App() {
       <BackgroundDecoration />
 
       {/* 1. TOP NAVBAR */}
-      <Navbar user={user} profile={profile} wallet={wallet} handleLogout={handleLogout} setShowLoginModal={setShowLoginModal} />
+      <Navbar user={user} profile={profile} wallet={wallet} handleLogout={handleLogout} setShowLoginModal={setShowLoginModal} handleTabClick={handleTabClick} />
 
       {/* 2. STATIC LEGAL PAGES (outside the Tab system) */}
       {STATIC_PAGES.includes(location.pathname) ? (

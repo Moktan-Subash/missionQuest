@@ -31,6 +31,7 @@ describe('Navbar', () => {
         wallet={null}
         handleLogout={vi.fn()}
         setShowLoginModal={vi.fn()}
+        handleTabClick={vi.fn()}
       />
     );
     expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
@@ -47,6 +48,7 @@ describe('Navbar', () => {
         wallet={null}
         handleLogout={vi.fn()}
         setShowLoginModal={setShowLoginModal}
+        handleTabClick={vi.fn()}
       />
     );
     await user.click(screen.getByRole('button', { name: /sign in/i }));
@@ -61,6 +63,7 @@ describe('Navbar', () => {
         wallet={wallet}
         handleLogout={vi.fn()}
         setShowLoginModal={vi.fn()}
+        handleTabClick={vi.fn()}
       />
     );
     expect(screen.getByText(/Rs\. 1250/)).toBeInTheDocument();
@@ -78,6 +81,7 @@ describe('Navbar', () => {
         wallet={wallet}
         handleLogout={handleLogout}
         setShowLoginModal={vi.fn()}
+        handleTabClick={vi.fn()}
       />
     );
     await user.click(screen.getByRole('button', { name: /logout/i }));
@@ -92,9 +96,27 @@ describe('Navbar', () => {
         wallet={null}
         handleLogout={vi.fn()}
         setShowLoginModal={vi.fn()}
+        handleTabClick={vi.fn()}
       />
     );
     expect(screen.queryByText(/XP/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /logout/i })).toBeInTheDocument();
+  });
+
+  it('navigates to the missions tab when the logo is clicked', async () => {
+    const handleTabClick = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <Navbar
+        user={null}
+        profile={null}
+        wallet={null}
+        handleLogout={vi.fn()}
+        setShowLoginModal={vi.fn()}
+        handleTabClick={handleTabClick}
+      />
+    );
+    await user.click(screen.getByText('MISSIONQUEST'));
+    expect(handleTabClick).toHaveBeenCalledWith('missions');
   });
 });
