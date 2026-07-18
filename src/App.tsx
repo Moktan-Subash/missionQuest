@@ -660,10 +660,14 @@ function App() {
 
       setProfile(profileData);
 
-      // Check if phone needs verification
-      if (!profileData.phone || !profileData.is_phone_verified) {
-        setShowPhoneModal(true);
-      }
+      // Phone verification is temporarily not enforced -- no SMS provider is
+      // configured in Supabase yet, so supabase.auth.updateUser({ phone })
+      // always fails and this modal was a dead-end blocking every login.
+      // Re-enable both this check and the one in handleStartMission below
+      // once a real SMS provider (Twilio etc.) is connected.
+      // if (!profileData.phone || !profileData.is_phone_verified) {
+      //   setShowPhoneModal(true);
+      // }
 
       // 2. Fetch Wallet (create on the fly if missing!)
       let { data: walletData } = await supabase
@@ -1050,7 +1054,7 @@ function App() {
 
     const { error } = await supabase.auth.updateUser({ phone: toE164Phone(phoneInput) });
     if (error) {
-      setPhoneError(error.message);
+      setPhoneError(error.message || 'Failed to send verification code. Please try again.');
       return;
     }
 
@@ -1062,7 +1066,7 @@ function App() {
     setPhoneError('');
     const { error } = await supabase.auth.updateUser({ phone: toE164Phone(phoneInput) });
     if (error) {
-      setPhoneError(error.message);
+      setPhoneError(error.message || 'Failed to send verification code. Please try again.');
       return;
     }
     setOtpResendCountdown(60);
@@ -1079,7 +1083,7 @@ function App() {
     });
 
     if (verifyError) {
-      setPhoneError(verifyError.message);
+      setPhoneError(verifyError.message || 'Failed to verify code. Please try again.');
       return;
     }
 
@@ -1117,10 +1121,12 @@ function App() {
       return;
     }
 
-    if (!profile.phone || !profile.is_phone_verified) {
-      setShowPhoneModal(true);
-      return;
-    }
+    // Same temporary bypass as the login-time check above -- see that
+    // comment for why.
+    // if (!profile.phone || !profile.is_phone_verified) {
+    //   setShowPhoneModal(true);
+    //   return;
+    // }
 
     if (activeAttempt) {
       alert('You already have an active mission running!');
