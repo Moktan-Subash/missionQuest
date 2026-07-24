@@ -13,6 +13,7 @@ import type {
   TournamentTeamMember,
   TournamentMatch,
   AnalyticsData,
+  Challenge,
 } from '../../types';
 import AdminMissionsManager from './AdminMissionsManager';
 import AdminSubmissions from './AdminSubmissions';
@@ -25,9 +26,10 @@ import AdminBroadcast from './AdminBroadcast';
 import AdminSupportTickets from './AdminSupportTickets';
 import AdminFeedback from './AdminFeedback';
 import AdminTournaments from './AdminTournaments';
+import AdminChallenges from './AdminChallenges';
 import AdminAnalytics from './AdminAnalytics';
 
-type AdminSection = 'missions' | 'submissions' | 'payouts' | 'deposits' | 'membership' | 'players' | 'gameids' | 'broadcast' | 'support' | 'feedback' | 'tournaments' | 'analytics';
+type AdminSection = 'missions' | 'submissions' | 'payouts' | 'deposits' | 'membership' | 'players' | 'gameids' | 'broadcast' | 'support' | 'feedback' | 'tournaments' | 'challenges' | 'analytics';
 type AttemptFilter = 'all' | 'active' | 'pending_review' | 'approved' | 'rejected' | 'expired' | 'cancelled';
 
 interface AdminScreenProps {
@@ -121,6 +123,10 @@ interface AdminScreenProps {
   handleUpdateLobbyResult: (participantId: string, placement: number | null, points: number | null, tournamentId: string) => void;
   handleMarkMatchCompleted: (matchId: string, tournamentId: string) => void;
 
+  // Challenges
+  adminPendingChallenges: Challenge[];
+  handleConfirmChallengeResult: (challengeId: string, winnerUserId: string) => void;
+
   // Analytics
   analyticsData: AnalyticsData | null;
   loadingAnalytics: boolean;
@@ -195,6 +201,8 @@ function AdminScreen({
   handleConfirmMatchResult,
   handleUpdateLobbyResult,
   handleMarkMatchCompleted,
+  adminPendingChallenges,
+  handleConfirmChallengeResult,
   analyticsData,
   loadingAnalytics,
   fetchAnalyticsData,
@@ -240,6 +248,9 @@ function AdminScreen({
           </button>
           <button onClick={() => setAdminSection('tournaments')} className={`filter-btn ${adminSection === 'tournaments' ? 'active' : ''}`}>
             💰 Tournaments
+          </button>
+          <button onClick={() => { setAdminSection('challenges'); fetchAdminPanelData(); }} className={`filter-btn ${adminSection === 'challenges' ? 'active' : ''}`}>
+            ⚔️ Challenges{adminPendingChallenges.length > 0 ? ` (${adminPendingChallenges.length})` : ''}
           </button>
           <button onClick={() => { setAdminSection('analytics'); fetchAnalyticsData(); }} className={`filter-btn ${adminSection === 'analytics' ? 'active' : ''}`}>
             📊 Analytics
@@ -381,6 +392,14 @@ function AdminScreen({
           handleConfirmMatchResult={handleConfirmMatchResult}
           handleUpdateLobbyResult={handleUpdateLobbyResult}
           handleMarkMatchCompleted={handleMarkMatchCompleted}
+        />
+      )}
+
+      {/* CHALLENGES */}
+      {adminSection === 'challenges' && (
+        <AdminChallenges
+          adminPendingChallenges={adminPendingChallenges}
+          handleConfirmChallengeResult={handleConfirmChallengeResult}
         />
       )}
 

@@ -25,6 +25,8 @@ import {
   type TournamentMatch,
   type TournamentMatchMessage,
   type AnalyticsData,
+  type Challenge,
+  type ChallengeMessage,
 } from './types';
 import Navbar from './components/Navbar';
 import BackgroundDecoration from './components/BackgroundDecoration';
@@ -36,6 +38,7 @@ import MembershipScreen from './screens/MembershipScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import NotificationsScreen from './screens/NotificationsScreen';
 import TournamentsScreen from './screens/TournamentsScreen';
+import ChallengesScreen from './screens/ChallengesScreen';
 import AdminScreen from './screens/admin/AdminScreen';
 import LoginModal from './components/modals/LoginModal';
 import WithdrawModal from './components/modals/WithdrawModal';
@@ -52,6 +55,10 @@ import TeamRosterModal from './components/modals/TeamRosterModal';
 import MatchChatModal from './components/modals/MatchChatModal';
 import SubmitResultModal from './components/modals/SubmitResultModal';
 import TournamentFormModal, { type TournamentFormState } from './components/modals/TournamentFormModal';
+import CreateChallengeModal from './components/modals/CreateChallengeModal';
+import AcceptChallengeModal from './components/modals/AcceptChallengeModal';
+import ChallengeChatModal from './components/modals/ChallengeChatModal';
+import SubmitChallengeResultModal from './components/modals/SubmitChallengeResultModal';
 import TermsScreen from './screens/TermsScreen';
 import PrivacyScreen from './screens/PrivacyScreen';
 
@@ -164,6 +171,44 @@ function App() {
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
   const [deactivatingAccount, setDeactivatingAccount] = useState(false);
 
+  // --- CHALLENGES (peer-to-peer wagered 1v1/team matches) ---
+  const [challenges, setChallenges] = useState<Challenge[]>([]);
+  const [myChallenges, setMyChallenges] = useState<Challenge[]>([]);
+  const [challengeGameFilter, setChallengeGameFilter] = useState<'ALL' | Challenge['game_type']>('ALL');
+  const [showCreateChallengeModal, setShowCreateChallengeModal] = useState(false);
+  const [challengeForm, setChallengeForm] = useState({
+    game_type: 'MLBB' as Challenge['game_type'],
+    mode: 'solo' as Challenge['mode'],
+    stake_amount: '',
+    team_size: '2',
+    team_name: '',
+  });
+  // Shared roster-builder state, reused by both the create-challenge modal
+  // and the accept-team-challenge modal (only one is ever open at a time).
+  const [challengeRoster, setChallengeRoster] = useState<VerifiedPlayer[]>([]);
+  const [challengeRosterQuery, setChallengeRosterQuery] = useState('');
+  const [challengeRosterResults, setChallengeRosterResults] = useState<VerifiedPlayer[]>([]);
+  const [searchingChallengeRoster, setSearchingChallengeRoster] = useState(false);
+  const [creatingChallenge, setCreatingChallenge] = useState(false);
+  const [challengeFormError, setChallengeFormError] = useState('');
+  const [showAcceptChallengeModal, setShowAcceptChallengeModal] = useState(false);
+  const [acceptingChallenge, setAcceptingChallenge] = useState<Challenge | null>(null);
+  const [acceptTeamName, setAcceptTeamName] = useState('');
+  const [acceptingChallengeSubmitting, setAcceptingChallengeSubmitting] = useState(false);
+  const [acceptChallengeError, setAcceptChallengeError] = useState('');
+  const [showChallengeChatModal, setShowChallengeChatModal] = useState(false);
+  const [chattingChallenge, setChattingChallenge] = useState<Challenge | null>(null);
+  const [challengeMessages, setChallengeMessages] = useState<ChallengeMessage[]>([]);
+  const [challengeChatInput, setChallengeChatInput] = useState('');
+  const [sendingChallengeChatMessage, setSendingChallengeChatMessage] = useState(false);
+  const [showSubmitChallengeResultModal, setShowSubmitChallengeResultModal] = useState(false);
+  const [submittingResultChallenge, setSubmittingResultChallenge] = useState<Challenge | null>(null);
+  const [challengeResultWinnerId, setChallengeResultWinnerId] = useState('');
+  const [challengeResultProofFile, setChallengeResultProofFile] = useState<File | null>(null);
+  const [submittingChallengeResult, setSubmittingChallengeResult] = useState(false);
+  const [challengeResultSubmitError, setChallengeResultSubmitError] = useState('');
+  const [adminPendingChallenges, setAdminPendingChallenges] = useState<Challenge[]>([]);
+
   // Action/Modal states
   const [submittingProof, setSubmittingProof] = useState(false);
   const [proofFile, setProofFile] = useState<File | null>(null);
@@ -226,7 +271,7 @@ function App() {
   const [adminTxId, setAdminTxId] = useState<{[key: string]: string}>({});
 
   // Admin Dashboard: sub-navigation
-  const [adminSection, setAdminSection] = useState<'missions' | 'submissions' | 'payouts' | 'deposits' | 'membership' | 'players' | 'gameids' | 'broadcast' | 'support' | 'feedback' | 'tournaments' | 'analytics'>('missions');
+  const [adminSection, setAdminSection] = useState<'missions' | 'submissions' | 'payouts' | 'deposits' | 'membership' | 'players' | 'gameids' | 'broadcast' | 'support' | 'feedback' | 'tournaments' | 'challenges' | 'analytics'>('missions');
   const [, setAdminClockTick] = useState(0);
 
   // Admin: Mission Manager
@@ -283,6 +328,7 @@ function App() {
         setMyTournamentRegistrations([]);
         setMyTeamMembers([]);
         setMyMatches([]);
+        setMyChallenges([]);
         setAuthLoading(false);
       }
     });
@@ -321,6 +367,16 @@ function App() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'tournament_match_participants' },
+        () => fetchUserData(user.id)
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'challenges', filter: `creator_user_id=eq.${user.id}` },
+        () => fetchUserData(user.id)
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'challenges', filter: `acceptor_user_id=eq.${user.id}` },
         () => fetchUserData(user.id)
       )
       .subscribe();
@@ -363,6 +419,7 @@ function App() {
     fetchPlatformSettings();
     fetchPublicFeedback();
     fetchTournaments();
+    fetchChallenges();
   }, []);
 
   // 2z. Live sync for tournament registration counts -- runs for everyone,
@@ -378,6 +435,14 @@ function App() {
           const updated = payload.new as Tournament;
           setTournaments((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
         }
+      )
+      .on(
+        // Full refetch (rather than merging payload.new) because the public
+        // challenge list needs creator_profile/acceptor_profile joins that
+        // a raw postgres_changes payload doesn't carry.
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'challenges' },
+        () => fetchChallenges()
       )
       .subscribe();
 
@@ -421,6 +486,39 @@ function App() {
       supabase.removeChannel(channel);
     };
   }, [chattingMatch?.id]);
+
+  // 2z3. Challenge chat: same scoped-to-modal-lifetime pattern as match chat above.
+  useEffect(() => {
+    if (!chattingChallenge) return;
+    let cancelled = false;
+
+    (async () => {
+      const { data } = await supabase
+        .from('challenge_messages')
+        .select('*, profile:profiles(*)')
+        .eq('challenge_id', chattingChallenge.id)
+        .order('created_at', { ascending: true });
+      if (!cancelled) setChallengeMessages((data as ChallengeMessage[]) || []);
+    })();
+
+    const channel = supabase
+      .channel(`challenge-chat-${chattingChallenge.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'challenge_messages', filter: `challenge_id=eq.${chattingChallenge.id}` },
+        async (payload) => {
+          const msg = payload.new as ChallengeMessage;
+          const { data: senderProfile } = await supabase.from('profiles').select('*').eq('id', msg.sender_user_id).single();
+          setChallengeMessages((prev) => [...prev, { ...msg, profile: (senderProfile as Profile) || undefined }]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
+  }, [chattingChallenge?.id]);
 
   // 2a. Leaderboard refetches whenever the selected period (all/week/month) changes.
   useEffect(() => {
@@ -549,6 +647,24 @@ function App() {
     Promise.all(eligible.map((t) => supabase.rpc('close_expired_registration', { p_tournament_id: t.id })))
       .then(() => fetchTournaments());
   }, [tournaments]);
+
+  // Same opportunistic pattern for challenges: expire_open_challenges() has no
+  // permission check (its own WHERE clause is the real guard), so it's safe
+  // to call it whenever anyone's browser has an open challenge in state past
+  // its 24h window. Runs for every visitor for the same reason as tournament
+  // registration close above.
+  const attemptedChallengeExpireIds = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const eligible = challenges.filter((c) =>
+      !attemptedChallengeExpireIds.current.has(c.id)
+      && c.status === 'open'
+      && new Date(c.expires_at).getTime() < Date.now()
+    );
+    if (eligible.length === 0) return;
+
+    eligible.forEach((c) => attemptedChallengeExpireIds.current.add(c.id));
+    supabase.rpc('expire_open_challenges', {}).then(() => fetchChallenges());
+  }, [challenges]);
 
   const formatCountdown = (expiresAt: string) => {
     const diffMs = new Date(expiresAt).getTime() - Date.now();
@@ -779,6 +895,17 @@ function App() {
         setMyMatches([]);
       }
 
+      // "My challenges" mirrors myTournamentRegistrations -- the captain's
+      // own rows (creator or acceptor), not the full public roster. Teammates
+      // can always find "their" challenge via the public browse list too,
+      // since challenge rosters are publicly viewable same as tournaments.
+      const { data: myChallengesData } = await supabase
+        .from('challenges')
+        .select('*, creator_profile:profiles!creator_user_id(*), acceptor_profile:profiles!acceptor_user_id(*)')
+        .or(`creator_user_id.eq.${userId},acceptor_user_id.eq.${userId}`)
+        .order('created_at', { ascending: false });
+      setMyChallenges((myChallengesData as Challenge[]) || []);
+
       if (profileData.role === 'admin' || profileData.role === 'moderator') {
         fetchAdminPanelData();
       }
@@ -908,6 +1035,13 @@ function App() {
       .order('created_at', { ascending: false })
       .limit(100);
     setAllFeedback((feedbackData as Feedback[]) || []);
+
+    const { data: pendingChallengesData } = await supabase
+      .from('challenges')
+      .select('*, creator_profile:profiles!creator_user_id(*), acceptor_profile:profiles!acceptor_user_id(*)')
+      .eq('status', 'awaiting_review')
+      .order('result_submitted_at', { ascending: true });
+    setAdminPendingChallenges((pendingChallengesData as Challenge[]) || []);
   };
 
   // Unlimited (non-capped) aggregate queries -- separate from the .limit(100)
@@ -1017,6 +1151,18 @@ function App() {
       .order('round', { ascending: true })
       .order('label', { ascending: true });
     setBracketMatches((data as TournamentMatch[]) || []);
+  };
+
+  // Public browse list: every open (and recently resolved) challenge, same
+  // "fully public" visibility as tournaments -- no separate per-game fetch,
+  // the game filter is applied client-side same as the Missions game filter.
+  const fetchChallenges = async () => {
+    const { data } = await supabase
+      .from('challenges')
+      .select('*, creator_profile:profiles!creator_user_id(*), acceptor_profile:profiles!acceptor_user_id(*)')
+      .order('created_at', { ascending: false })
+      .limit(200);
+    setChallenges((data as Challenge[]) || []);
   };
 
   const handleGoogleLogin = async () => {
@@ -2322,6 +2468,228 @@ function App() {
     }
   };
 
+  // --- CHALLENGES (peer-to-peer wagered 1v1/team matches) ---
+  const openCreateChallengeModal = () => {
+    setChallengeForm({ game_type: 'MLBB', mode: 'solo', stake_amount: '', team_size: '2', team_name: '' });
+    setChallengeRoster([]);
+    setChallengeRosterQuery('');
+    setChallengeRosterResults([]);
+    setChallengeFormError('');
+    setShowCreateChallengeModal(true);
+  };
+
+  // Shared by both the create and accept-team-challenge modals -- searches
+  // verified players for whichever game_type is currently relevant, and
+  // filters out players already picked so the same result can't be added twice.
+  const handleSearchChallengeRoster = async (query: string, gameType: Challenge['game_type']) => {
+    setChallengeRosterQuery(query);
+    setSearchingChallengeRoster(true);
+    const { data, error } = await supabase.rpc('search_verified_players_for_challenge', {
+      p_game_type: gameType,
+      p_query: query,
+    });
+    setSearchingChallengeRoster(false);
+    if (!error) {
+      const pickedIds = new Set(challengeRoster.map((p) => p.id));
+      setChallengeRosterResults(((data as VerifiedPlayer[]) || []).filter((p) => !pickedIds.has(p.id)));
+    }
+  };
+
+  const handleAddChallengeRosterPlayer = (player: VerifiedPlayer, maxSize: number) => {
+    if (challengeRoster.length >= maxSize) return;
+    setChallengeRoster((prev) => [...prev, player]);
+    setChallengeRosterResults((prev) => prev.filter((p) => p.id !== player.id));
+  };
+
+  const handleRemoveChallengeRosterPlayer = (playerId: string) => {
+    setChallengeRoster((prev) => prev.filter((p) => p.id !== playerId));
+  };
+
+  const handleCreateChallenge = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setChallengeFormError('');
+
+    const isTeam = challengeForm.mode === 'team';
+    const teamSize = parseInt(challengeForm.team_size, 10);
+    if (isTeam && (!challengeForm.team_name.trim())) {
+      setChallengeFormError('Team name is required.');
+      return;
+    }
+    if (isTeam && challengeRoster.length !== teamSize - 1) {
+      setChallengeFormError(`Add exactly ${teamSize - 1} teammate(s) -- you're the captain, making a full ${teamSize}-player team.`);
+      return;
+    }
+
+    setCreatingChallenge(true);
+    const { error } = await supabase.rpc('create_challenge', {
+      p_game_type: challengeForm.game_type,
+      p_mode: challengeForm.mode,
+      p_stake_amount: parseFloat(challengeForm.stake_amount),
+      p_team_size: isTeam ? teamSize : null,
+      p_team_name: isTeam ? challengeForm.team_name.trim() : null,
+      p_roster_user_ids: isTeam ? challengeRoster.map((p) => p.id) : null,
+    });
+    setCreatingChallenge(false);
+
+    if (error) {
+      setChallengeFormError(error.message);
+    } else {
+      setShowCreateChallengeModal(false);
+      fetchChallenges();
+      if (user) fetchUserData(user.id);
+    }
+  };
+
+  const openAcceptChallengeModal = (challenge: Challenge) => {
+    setAcceptingChallenge(challenge);
+    setAcceptTeamName('');
+    setChallengeRoster([]);
+    setChallengeRosterQuery('');
+    setChallengeRosterResults([]);
+    setAcceptChallengeError('');
+    setShowAcceptChallengeModal(true);
+  };
+
+  const handleAcceptSoloChallenge = async (challenge: Challenge) => {
+    const { error } = await supabase.rpc('accept_challenge', { p_challenge_id: challenge.id });
+    if (error) {
+      alert(error.message);
+    } else {
+      fetchChallenges();
+      if (user) fetchUserData(user.id);
+    }
+  };
+
+  const handleAcceptTeamChallenge = async () => {
+    if (!acceptingChallenge) return;
+    setAcceptChallengeError('');
+
+    const teamSize = acceptingChallenge.team_size || 0;
+    if (!acceptTeamName.trim()) {
+      setAcceptChallengeError('Team name is required.');
+      return;
+    }
+    if (challengeRoster.length !== teamSize - 1) {
+      setAcceptChallengeError(`Add exactly ${teamSize - 1} teammate(s) -- you're the captain, making a full ${teamSize}-player team.`);
+      return;
+    }
+
+    setAcceptingChallengeSubmitting(true);
+    const { error } = await supabase.rpc('accept_challenge', {
+      p_challenge_id: acceptingChallenge.id,
+      p_team_name: acceptTeamName.trim(),
+      p_roster_user_ids: challengeRoster.map((p) => p.id),
+    });
+    setAcceptingChallengeSubmitting(false);
+
+    if (error) {
+      setAcceptChallengeError(error.message);
+    } else {
+      setShowAcceptChallengeModal(false);
+      setAcceptingChallenge(null);
+      fetchChallenges();
+      if (user) fetchUserData(user.id);
+    }
+  };
+
+  const handleCancelChallenge = async (challengeId: string) => {
+    if (!window.confirm('Cancel this challenge? Your stake will be refunded.')) return;
+    const { error } = await supabase.rpc('cancel_challenge', { p_challenge_id: challengeId });
+    if (error) {
+      alert(error.message);
+    } else {
+      fetchChallenges();
+      if (user) fetchUserData(user.id);
+    }
+  };
+
+  const openChallengeChat = (challenge: Challenge) => {
+    setChattingChallenge(challenge);
+    setShowChallengeChatModal(true);
+    setChallengeChatInput('');
+  };
+
+  const closeChallengeChat = () => {
+    setShowChallengeChatModal(false);
+    setChattingChallenge(null);
+    setChallengeMessages([]);
+  };
+
+  const handleSendChallengeMessage = async () => {
+    if (!chattingChallenge || !user || !challengeChatInput.trim()) return;
+    setSendingChallengeChatMessage(true);
+    const { error } = await supabase.from('challenge_messages').insert({
+      challenge_id: chattingChallenge.id,
+      sender_user_id: user.id,
+      body: challengeChatInput.trim(),
+    });
+    setSendingChallengeChatMessage(false);
+    if (error) {
+      alert(error.message);
+    } else {
+      setChallengeChatInput('');
+    }
+  };
+
+  const openSubmitChallengeResultModal = (challenge: Challenge) => {
+    setSubmittingResultChallenge(challenge);
+    setChallengeResultWinnerId('');
+    setChallengeResultProofFile(null);
+    setChallengeResultSubmitError('');
+    setShowSubmitChallengeResultModal(true);
+  };
+
+  const handleSubmitChallengeResult = async () => {
+    if (!submittingResultChallenge || !user) return;
+    if (!challengeResultWinnerId) {
+      setChallengeResultSubmitError('Select the winner.');
+      return;
+    }
+
+    setSubmittingChallengeResult(true);
+    setChallengeResultSubmitError('');
+    try {
+      let proofUrl: string | null = null;
+      if (challengeResultProofFile) {
+        const fileExt = challengeResultProofFile.name.split('.').pop();
+        const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage
+          .from('challenge_result_proofs')
+          .upload(fileName, challengeResultProofFile, { cacheControl: '3600', upsert: true });
+        if (uploadError) throw uploadError;
+        const { data: { publicUrl } } = supabase.storage.from('challenge_result_proofs').getPublicUrl(fileName);
+        proofUrl = publicUrl;
+      }
+
+      const { error } = await supabase.rpc('submit_challenge_result', {
+        p_challenge_id: submittingResultChallenge.id,
+        p_proposed_winner_user_id: challengeResultWinnerId,
+        p_result_proof_url: proofUrl,
+      });
+      if (error) throw error;
+
+      setShowSubmitChallengeResultModal(false);
+      setSubmittingResultChallenge(null);
+      fetchChallenges();
+      if (user) fetchUserData(user.id);
+    } catch (e: any) {
+      setChallengeResultSubmitError(e.message);
+    } finally {
+      setSubmittingChallengeResult(false);
+    }
+  };
+
+  // --- ADMIN: CHALLENGES ---
+  const handleConfirmChallengeResult = async (challengeId: string, winnerUserId: string) => {
+    const { error } = await supabase.rpc('confirm_challenge_result', { p_challenge_id: challengeId, p_winner_user_id: winnerUserId });
+    if (error) {
+      alert(error.message);
+    } else {
+      fetchChallenges();
+      fetchAdminPanelData();
+    }
+  };
+
   const handleDeactivateAccount = async () => {
     setDeactivatingAccount(true);
     const { error } = await supabase.rpc('deactivate_own_account');
@@ -2413,6 +2781,9 @@ function App() {
             </button>
             <button onClick={() => handleTabClick('tournaments')} className={`tab-btn ${activeTab === 'tournaments' ? 'active' : ''}`}>
               💰 Tournaments
+            </button>
+            <button onClick={() => handleTabClick('challenges')} className={`tab-btn ${activeTab === 'challenges' ? 'active' : ''}`}>
+              ⚔️ Challenges
             </button>
             <button onClick={() => handleTabClick('wallet')} className={`tab-btn ${activeTab === 'wallet' ? 'active' : ''}`}>
               💼 Wallet
@@ -2554,6 +2925,26 @@ function App() {
             />
           )}
 
+          {/* SCREEN: CHALLENGES */}
+          {activeTab === 'challenges' && (
+            <ChallengesScreen
+              user={user}
+              challenges={challenges}
+              myChallenges={myChallenges}
+              gameIdLinks={gameIdLinks}
+              challengeGameFilter={challengeGameFilter}
+              setChallengeGameFilter={setChallengeGameFilter}
+              setShowLoginModal={setShowLoginModal}
+              handleTabClick={handleTabClick}
+              openCreateChallengeModal={openCreateChallengeModal}
+              openAcceptChallengeModal={openAcceptChallengeModal}
+              handleAcceptSoloChallenge={handleAcceptSoloChallenge}
+              handleCancelChallenge={handleCancelChallenge}
+              openChallengeChat={openChallengeChat}
+              openSubmitChallengeResultModal={openSubmitChallengeResultModal}
+            />
+          )}
+
           {/* SCREEN: REAL ADMIN DASHBOARD */}
           {user && activeTab === 'admin' && (profile?.role === 'admin' || profile?.role === 'moderator') && (
             <AdminScreen
@@ -2624,6 +3015,8 @@ function App() {
               handleConfirmMatchResult={handleConfirmMatchResult}
               handleUpdateLobbyResult={handleUpdateLobbyResult}
               handleMarkMatchCompleted={handleMarkMatchCompleted}
+              adminPendingChallenges={adminPendingChallenges}
+              handleConfirmChallengeResult={handleConfirmChallengeResult}
               analyticsData={analyticsData}
               loadingAnalytics={loadingAnalytics}
               fetchAnalyticsData={fetchAnalyticsData}
@@ -2851,6 +3244,74 @@ function App() {
           resultSubmitError={resultSubmitError}
           onSubmit={handleSubmitMatchResult}
           onClose={() => setShowSubmitResultModal(false)}
+        />
+      )}
+
+      {/* MODAL: CREATE CHALLENGE */}
+      {showCreateChallengeModal && (
+        <CreateChallengeModal
+          challengeForm={challengeForm}
+          setChallengeForm={setChallengeForm}
+          challengeRoster={challengeRoster}
+          challengeRosterQuery={challengeRosterQuery}
+          challengeRosterResults={challengeRosterResults}
+          searchingChallengeRoster={searchingChallengeRoster}
+          handleSearchChallengeRoster={handleSearchChallengeRoster}
+          handleAddChallengeRosterPlayer={handleAddChallengeRosterPlayer}
+          handleRemoveChallengeRosterPlayer={handleRemoveChallengeRosterPlayer}
+          creatingChallenge={creatingChallenge}
+          challengeFormError={challengeFormError}
+          onSubmit={handleCreateChallenge}
+          onClose={() => setShowCreateChallengeModal(false)}
+        />
+      )}
+
+      {/* MODAL: ACCEPT TEAM CHALLENGE */}
+      {showAcceptChallengeModal && acceptingChallenge && (
+        <AcceptChallengeModal
+          challenge={acceptingChallenge}
+          acceptTeamName={acceptTeamName}
+          setAcceptTeamName={setAcceptTeamName}
+          challengeRoster={challengeRoster}
+          challengeRosterQuery={challengeRosterQuery}
+          challengeRosterResults={challengeRosterResults}
+          searchingChallengeRoster={searchingChallengeRoster}
+          handleSearchChallengeRoster={handleSearchChallengeRoster}
+          handleAddChallengeRosterPlayer={handleAddChallengeRosterPlayer}
+          handleRemoveChallengeRosterPlayer={handleRemoveChallengeRosterPlayer}
+          acceptingChallengeSubmitting={acceptingChallengeSubmitting}
+          acceptChallengeError={acceptChallengeError}
+          onSubmit={handleAcceptTeamChallenge}
+          onClose={() => setShowAcceptChallengeModal(false)}
+        />
+      )}
+
+      {/* MODAL: CHALLENGE CHAT */}
+      {showChallengeChatModal && chattingChallenge && user && (
+        <ChallengeChatModal
+          challenge={chattingChallenge}
+          messages={challengeMessages}
+          currentUserId={user.id}
+          chatInput={challengeChatInput}
+          setChatInput={setChallengeChatInput}
+          sendingChatMessage={sendingChallengeChatMessage}
+          onSend={handleSendChallengeMessage}
+          onClose={closeChallengeChat}
+        />
+      )}
+
+      {/* MODAL: SUBMIT CHALLENGE RESULT */}
+      {showSubmitChallengeResultModal && submittingResultChallenge && (
+        <SubmitChallengeResultModal
+          challenge={submittingResultChallenge}
+          challengeResultWinnerId={challengeResultWinnerId}
+          setChallengeResultWinnerId={setChallengeResultWinnerId}
+          challengeResultProofFile={challengeResultProofFile}
+          setChallengeResultProofFile={setChallengeResultProofFile}
+          submittingChallengeResult={submittingChallengeResult}
+          challengeResultSubmitError={challengeResultSubmitError}
+          onSubmit={handleSubmitChallengeResult}
+          onClose={() => setShowSubmitChallengeResultModal(false)}
         />
       )}
 

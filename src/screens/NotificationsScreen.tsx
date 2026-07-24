@@ -18,6 +18,7 @@ const CATEGORY_ICON: Record<Notification['category'], string> = {
   support: '🛟',
   admin: '🛠️',
   account: '👋',
+  challenge: '⚔️',
 };
 
 // Where clicking a notification should take you. Admin-facing categories
@@ -34,6 +35,7 @@ const CATEGORY_TAB: Record<Notification['category'], Tab> = {
   support: 'profile',
   admin: 'admin',
   account: 'profile',
+  challenge: 'challenges',
 };
 
 function timeAgo(iso: string): string {

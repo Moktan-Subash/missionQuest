@@ -2836,3 +2836,553 @@ CREATE POLICY "Users can delete their own expired read notifications" ON public.
         AND read_at IS NOT NULL
         AND read_at < NOW() - INTERVAL '12 hours'
     );
+
+
+-- 31. CHALLENGES: peer-to-peer wagered 1v1/team matches, separate from the
+-- admin-run tournament system. A player (or team captain) opens a challenge
+-- for a stake; it's broadcast to every OTHER player with a *verified* game ID
+-- for that game (game_id_links, same verification gate tournaments use);
+-- first to accept locks it in. Both stakes are debited up front (same direct
+-- wallet-balance-check idiom as mission entry fees / membership upgrades --
+-- see start_mission_attempt), the two captains coordinate over a private chat
+-- (same shape as tournament_match_messages), submit a result screenshot, and
+-- an admin confirms the winner, who receives both stakes minus a 1% platform
+-- rake (kept, not credited anywhere -- same implicit-revenue convention as
+-- every other fee deduction in this file).
+--
+-- Team challenges: the captain (creator or acceptor) funds the whole stake
+-- alone -- teammates listed in challenge_team_members are informational
+-- (public "who's playing" roster) only, no money moves through them. This is
+-- why creator_user_id/acceptor_user_id on the challenges row are always the
+-- captain, which lets chat/result-submission access checks stay a plain
+-- equality check against the challenges row with no extra join, unlike
+-- tournaments (which check tournament_team_members.is_captain because a
+-- registration can outlive its creator's own participation).
+CREATE TABLE IF NOT EXISTS public.challenges (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    game_type TEXT NOT NULL CHECK (game_type IN ('MLBB', 'PUBG', 'FREEFIRE', 'COD', 'CR')),
+    mode TEXT NOT NULL CHECK (mode IN ('solo', 'team')),
+    team_size INTEGER,
+    stake_amount NUMERIC(10,2) NOT NULL CHECK (stake_amount > 0),
+    status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'accepted', 'awaiting_review', 'completed', 'cancelled', 'expired')),
+    creator_user_id UUID REFERENCES public.profiles NOT NULL,
+    creator_team_name TEXT,
+    acceptor_user_id UUID REFERENCES public.profiles,
+    acceptor_team_name TEXT,
+    proposed_winner_user_id UUID REFERENCES public.profiles,
+    result_proof_url TEXT,
+    result_submitted_by UUID REFERENCES public.profiles,
+    result_submitted_at TIMESTAMP WITH TIME ZONE,
+    winner_user_id UUID REFERENCES public.profiles,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    accepted_at TIMESTAMP WITH TIME ZONE,
+    completed_at TIMESTAMP WITH TIME ZONE,
+    CHECK ((mode = 'solo' AND team_size IS NULL) OR (mode = 'team' AND team_size >= 2))
+);
+
+ALTER TABLE public.challenges ENABLE ROW LEVEL SECURITY;
+
+-- Fully public, same as tournaments -- open challenges need to be publicly
+-- browsable, and a completed one is just match history. No client-facing
+-- INSERT/UPDATE/DELETE policy at all -- every write goes through a
+-- SECURITY DEFINER RPC below, including admin's own result confirmation.
+DROP POLICY IF EXISTS "Challenges are viewable by everyone" ON public.challenges;
+CREATE POLICY "Challenges are viewable by everyone" ON public.challenges
+    FOR SELECT USING (true);
+
+CREATE TABLE IF NOT EXISTS public.challenge_team_members (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    challenge_id UUID REFERENCES public.challenges ON DELETE CASCADE NOT NULL,
+    side TEXT NOT NULL CHECK (side IN ('creator', 'acceptor')),
+    user_id UUID REFERENCES public.profiles ON DELETE CASCADE NOT NULL,
+    is_captain BOOLEAN DEFAULT false NOT NULL,
+    added_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+    UNIQUE(challenge_id, user_id)
+);
+
+ALTER TABLE public.challenge_team_members ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Challenge team members are viewable by everyone" ON public.challenge_team_members;
+CREATE POLICY "Challenge team members are viewable by everyone" ON public.challenge_team_members
+    FOR SELECT USING (true);
+
+-- Chat: scoped to the two captains only, same "plain text log, no
+-- attachments" shape as tournament_match_messages.
+CREATE TABLE IF NOT EXISTS public.challenge_messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    challenge_id UUID REFERENCES public.challenges ON DELETE CASCADE NOT NULL,
+    sender_user_id UUID REFERENCES public.profiles NOT NULL,
+    body TEXT NOT NULL CHECK (char_length(trim(body)) > 0 AND char_length(body) <= 2000),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+ALTER TABLE public.challenge_messages ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Challenge captains can view chat" ON public.challenge_messages;
+CREATE POLICY "Challenge captains can view chat" ON public.challenge_messages
+    FOR SELECT USING (
+        public.is_admin()
+        OR EXISTS (
+            SELECT 1 FROM public.challenges c
+            WHERE c.id = challenge_messages.challenge_id
+              AND (c.creator_user_id = auth.uid() OR c.acceptor_user_id = auth.uid())
+        )
+    );
+
+DROP POLICY IF EXISTS "Challenge captains can send chat" ON public.challenge_messages;
+CREATE POLICY "Challenge captains can send chat" ON public.challenge_messages
+    FOR INSERT WITH CHECK (
+        sender_user_id = auth.uid()
+        AND EXISTS (
+            SELECT 1 FROM public.challenges c
+            WHERE c.id = challenge_messages.challenge_id
+              AND (c.creator_user_id = auth.uid() OR c.acceptor_user_id = auth.uid())
+        )
+    );
+
+-- Storage bucket for result screenshots -- same public-read/own-folder-write
+-- pattern as match_result_proofs.
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('challenge_result_proofs', 'challenge_result_proofs', true)
+ON CONFLICT (id) DO NOTHING;
+
+DROP POLICY IF EXISTS "Challenge result proofs are viewable by everyone" ON storage.objects;
+CREATE POLICY "Challenge result proofs are viewable by everyone"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'challenge_result_proofs');
+
+DROP POLICY IF EXISTS "Users can upload their own challenge result proof" ON storage.objects;
+CREATE POLICY "Users can upload their own challenge result proof"
+ON storage.objects FOR INSERT
+WITH CHECK (
+    bucket_id = 'challenge_result_proofs'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+);
+
+-- notifications.category needs 'challenge' alongside everything already
+-- widened in phases 28/29.
+ALTER TABLE public.notifications DROP CONSTRAINT IF EXISTS notifications_category_check;
+ALTER TABLE public.notifications ADD CONSTRAINT notifications_category_check
+    CHECK (category IN ('broadcast', 'mission', 'payout', 'deposit', 'membership', 'tournament', 'game_id', 'support', 'admin', 'account', 'challenge'));
+
+-- Creates the challenge: verifies the creator's game ID, validates the
+-- roster for team mode, atomically debits the stake (same
+-- "UPDATE ... WHERE balance >= amount; IF NOT FOUND THEN RAISE" idiom as
+-- start_mission_attempt's entry fee), then broadcasts one notification per
+-- verified-game-ID holder of that game (excluding the creator).
+CREATE OR REPLACE FUNCTION public.create_challenge(
+    p_game_type TEXT,
+    p_mode TEXT,
+    p_stake_amount NUMERIC,
+    p_team_size INTEGER DEFAULT NULL,
+    p_team_name TEXT DEFAULT NULL,
+    p_roster_user_ids UUID[] DEFAULT NULL
+)
+RETURNS public.challenges AS $$
+DECLARE
+    v_caller UUID := auth.uid();
+    v_game_id_type TEXT;
+    v_result public.challenges;
+BEGIN
+    IF v_caller IS NULL THEN
+        RAISE EXCEPTION 'Not authenticated';
+    END IF;
+
+    IF p_mode NOT IN ('solo', 'team') THEN
+        RAISE EXCEPTION 'Invalid challenge mode';
+    END IF;
+
+    IF p_stake_amount IS NULL OR p_stake_amount <= 0 THEN
+        RAISE EXCEPTION 'Stake amount must be greater than zero';
+    END IF;
+
+    v_game_id_type := public.tournament_game_id_type(p_game_type);
+
+    IF NOT EXISTS (
+        SELECT 1 FROM public.game_id_links
+        WHERE user_id = v_caller AND game_type = v_game_id_type AND status = 'verified'
+    ) THEN
+        RAISE EXCEPTION 'You need a verified % game ID to create a challenge in this game', v_game_id_type;
+    END IF;
+
+    IF p_mode = 'team' THEN
+        IF p_team_name IS NULL OR trim(p_team_name) = '' THEN
+            RAISE EXCEPTION 'Team name is required';
+        END IF;
+        IF p_team_size IS NULL OR p_team_size < 2 THEN
+            RAISE EXCEPTION 'Team size must be at least 2';
+        END IF;
+        IF p_roster_user_ids IS NULL OR COALESCE(array_length(p_roster_user_ids, 1), 0) != p_team_size - 1 THEN
+            RAISE EXCEPTION 'A full %-player roster is required', p_team_size;
+        END IF;
+        IF v_caller = ANY(p_roster_user_ids) THEN
+            RAISE EXCEPTION 'Do not include yourself in the roster list';
+        END IF;
+        IF EXISTS (
+            SELECT 1 FROM unnest(p_roster_user_ids) AS uid
+            WHERE NOT EXISTS (
+                SELECT 1 FROM public.game_id_links
+                WHERE user_id = uid AND game_type = v_game_id_type AND status = 'verified'
+            )
+        ) THEN
+            RAISE EXCEPTION 'Every teammate must have a verified % game ID', v_game_id_type;
+        END IF;
+    ELSE
+        IF p_team_name IS NOT NULL OR p_team_size IS NOT NULL OR p_roster_user_ids IS NOT NULL THEN
+            RAISE EXCEPTION 'Solo challenges do not use a team roster';
+        END IF;
+    END IF;
+
+    UPDATE public.wallets
+    SET balance = balance - p_stake_amount, updated_at = NOW()
+    WHERE id = v_caller AND balance >= p_stake_amount;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Insufficient wallet balance to create this challenge';
+    END IF;
+
+    INSERT INTO public.challenges (game_type, mode, team_size, stake_amount, creator_user_id, creator_team_name, expires_at)
+    VALUES (p_game_type, p_mode, p_team_size, p_stake_amount, v_caller, trim(p_team_name), NOW() + INTERVAL '24 hours')
+    RETURNING * INTO v_result;
+
+    IF p_mode = 'team' THEN
+        INSERT INTO public.challenge_team_members (challenge_id, side, user_id, is_captain)
+        VALUES (v_result.id, 'creator', v_caller, true);
+
+        INSERT INTO public.challenge_team_members (challenge_id, side, user_id, is_captain)
+        SELECT v_result.id, 'creator', uid, false FROM unnest(p_roster_user_ids) AS uid;
+    END IF;
+
+    INSERT INTO public.notifications (user_id, title, body, category, related_id)
+    SELECT gil.user_id, '⚔️ New ' || v_game_id_type || ' Challenge',
+        'Someone opened a Rs. ' || p_stake_amount || ' challenge. First to accept plays for the pot!', 'challenge', v_result.id
+    FROM public.game_id_links gil
+    WHERE gil.game_type = v_game_id_type
+      AND gil.status = 'verified'
+      AND gil.user_id != v_caller;
+
+    RETURN v_result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Accepts an open challenge. Validation (verified game ID, roster) happens
+-- before any money moves; the stake debit happens before the "claim" UPDATE,
+-- and that claim UPDATE's WHERE status='open' is the sole arbiter of the
+-- open-broadcast "first to accept" race -- if two players accept at once,
+-- only one UPDATE actually matches a row (Postgres row-level locking), the
+-- loser gets a NULL back from RETURNING and RAISEs, which rolls back its own
+-- prior stake debit automatically (uncaught exception aborts the whole
+-- function's transaction) -- no manual refund/compensation code needed.
+CREATE OR REPLACE FUNCTION public.accept_challenge(
+    p_challenge_id UUID,
+    p_team_name TEXT DEFAULT NULL,
+    p_roster_user_ids UUID[] DEFAULT NULL
+)
+RETURNS public.challenges AS $$
+DECLARE
+    v_caller UUID := auth.uid();
+    v_challenge public.challenges;
+    v_game_id_type TEXT;
+    v_claimed public.challenges;
+BEGIN
+    IF v_caller IS NULL THEN
+        RAISE EXCEPTION 'Not authenticated';
+    END IF;
+
+    SELECT * INTO v_challenge FROM public.challenges WHERE id = p_challenge_id;
+    IF v_challenge IS NULL THEN
+        RAISE EXCEPTION 'Challenge not found';
+    END IF;
+    IF v_challenge.status != 'open' OR v_challenge.expires_at < NOW() THEN
+        RAISE EXCEPTION 'This challenge is no longer open';
+    END IF;
+    IF v_challenge.creator_user_id = v_caller THEN
+        RAISE EXCEPTION 'You cannot accept your own challenge';
+    END IF;
+
+    v_game_id_type := public.tournament_game_id_type(v_challenge.game_type);
+
+    IF NOT EXISTS (
+        SELECT 1 FROM public.game_id_links
+        WHERE user_id = v_caller AND game_type = v_game_id_type AND status = 'verified'
+    ) THEN
+        RAISE EXCEPTION 'You need a verified % game ID to accept this challenge', v_game_id_type;
+    END IF;
+
+    IF v_challenge.mode = 'team' THEN
+        IF p_team_name IS NULL OR trim(p_team_name) = '' THEN
+            RAISE EXCEPTION 'Team name is required';
+        END IF;
+        IF p_roster_user_ids IS NULL OR COALESCE(array_length(p_roster_user_ids, 1), 0) != v_challenge.team_size - 1 THEN
+            RAISE EXCEPTION 'A full %-player roster is required', v_challenge.team_size;
+        END IF;
+        IF v_caller = ANY(p_roster_user_ids) THEN
+            RAISE EXCEPTION 'Do not include yourself in the roster list';
+        END IF;
+        IF EXISTS (
+            SELECT 1 FROM unnest(p_roster_user_ids) AS uid
+            WHERE NOT EXISTS (
+                SELECT 1 FROM public.game_id_links
+                WHERE user_id = uid AND game_type = v_game_id_type AND status = 'verified'
+            )
+        ) THEN
+            RAISE EXCEPTION 'Every teammate must have a verified % game ID', v_game_id_type;
+        END IF;
+    ELSE
+        IF p_team_name IS NOT NULL OR p_roster_user_ids IS NOT NULL THEN
+            RAISE EXCEPTION 'This is a solo challenge';
+        END IF;
+    END IF;
+
+    UPDATE public.wallets
+    SET balance = balance - v_challenge.stake_amount, updated_at = NOW()
+    WHERE id = v_caller AND balance >= v_challenge.stake_amount;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Insufficient wallet balance to accept this challenge';
+    END IF;
+
+    UPDATE public.challenges
+    SET status = 'accepted', acceptor_user_id = v_caller, acceptor_team_name = trim(p_team_name), accepted_at = NOW()
+    WHERE id = p_challenge_id AND status = 'open'
+    RETURNING * INTO v_claimed;
+
+    IF v_claimed IS NULL THEN
+        RAISE EXCEPTION 'This challenge was just accepted by someone else';
+    END IF;
+
+    IF v_challenge.mode = 'team' THEN
+        INSERT INTO public.challenge_team_members (challenge_id, side, user_id, is_captain)
+        VALUES (p_challenge_id, 'acceptor', v_caller, true);
+
+        INSERT INTO public.challenge_team_members (challenge_id, side, user_id, is_captain)
+        SELECT p_challenge_id, 'acceptor', uid, false FROM unnest(p_roster_user_ids) AS uid;
+    END IF;
+
+    INSERT INTO public.notifications (user_id, title, body, category, related_id)
+    VALUES (v_challenge.creator_user_id, '⚔️ Challenge accepted!',
+        'Your Rs. ' || v_challenge.stake_amount || ' challenge was accepted. Coordinate the match in the chat.', 'challenge', p_challenge_id);
+
+    RETURN v_claimed;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Creator-only, only while still unaccepted. Atomic UPDATE...WHERE
+-- status='open' is itself the guard against a cancel racing an accept (same
+-- reasoning as the claim UPDATE above) -- if RETURNING comes back NULL, an
+-- accept won the race first, so there's nothing to refund here.
+CREATE OR REPLACE FUNCTION public.cancel_challenge(p_challenge_id UUID)
+RETURNS void AS $$
+DECLARE
+    v_caller UUID := auth.uid();
+    v_stake NUMERIC(10,2);
+BEGIN
+    IF v_caller IS NULL THEN
+        RAISE EXCEPTION 'Not authenticated';
+    END IF;
+
+    UPDATE public.challenges
+    SET status = 'cancelled'
+    WHERE id = p_challenge_id AND creator_user_id = v_caller AND status = 'open'
+    RETURNING stake_amount INTO v_stake;
+
+    IF v_stake IS NULL THEN
+        RAISE EXCEPTION 'This challenge can no longer be cancelled';
+    END IF;
+
+    UPDATE public.wallets SET balance = balance + v_stake, updated_at = NOW() WHERE id = v_caller;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Opportunistic, no-cron cleanup -- same pattern as close_expired_registration
+-- / resolve_missed_checkin. No permission check: the WHERE clause (an
+-- unspoofable timestamp comparison) is what determines whether anything
+-- happens, so it's safe for the client to call this whenever the Challenges
+-- screen loads. The bulk UPDATE...RETURNING is the same race-free idiom as
+-- the single-row cancel/accept above -- each row can only be claimed by one
+-- concurrent call.
+CREATE OR REPLACE FUNCTION public.expire_open_challenges()
+RETURNS void AS $$
+DECLARE
+    v_expired public.challenges;
+BEGIN
+    FOR v_expired IN
+        UPDATE public.challenges
+        SET status = 'expired'
+        WHERE status = 'open' AND expires_at < NOW()
+        RETURNING *
+    LOOP
+        UPDATE public.wallets SET balance = balance + v_expired.stake_amount, updated_at = NOW() WHERE id = v_expired.creator_user_id;
+
+        INSERT INTO public.notifications (user_id, title, body, category, related_id)
+        VALUES (v_expired.creator_user_id, 'Challenge expired',
+            'Nobody accepted your Rs. ' || v_expired.stake_amount || ' challenge in time. Your stake has been refunded.', 'challenge', v_expired.id);
+    END LOOP;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- A participant submits what they saw; an admin has the final say -- exactly
+-- the tournament submit_match_result / confirm_match_result split.
+CREATE OR REPLACE FUNCTION public.submit_challenge_result(
+    p_challenge_id UUID,
+    p_proposed_winner_user_id UUID,
+    p_result_proof_url TEXT DEFAULT NULL
+)
+RETURNS void AS $$
+DECLARE
+    v_caller UUID := auth.uid();
+    v_challenge public.challenges;
+    v_opponent UUID;
+BEGIN
+    IF v_caller IS NULL THEN
+        RAISE EXCEPTION 'Not authenticated';
+    END IF;
+
+    SELECT * INTO v_challenge FROM public.challenges WHERE id = p_challenge_id;
+    IF v_challenge IS NULL THEN
+        RAISE EXCEPTION 'Challenge not found';
+    END IF;
+
+    IF v_challenge.status != 'accepted' THEN
+        RAISE EXCEPTION 'This challenge is not awaiting a result';
+    END IF;
+
+    IF v_caller != v_challenge.creator_user_id AND v_caller != v_challenge.acceptor_user_id THEN
+        RAISE EXCEPTION 'Only a participant in this challenge can submit a result';
+    END IF;
+
+    IF p_proposed_winner_user_id != v_challenge.creator_user_id AND p_proposed_winner_user_id != v_challenge.acceptor_user_id THEN
+        RAISE EXCEPTION 'The winner must be one of the two challenge participants';
+    END IF;
+
+    UPDATE public.challenges
+    SET status = 'awaiting_review',
+        proposed_winner_user_id = p_proposed_winner_user_id,
+        result_proof_url = p_result_proof_url,
+        result_submitted_by = v_caller,
+        result_submitted_at = NOW()
+    WHERE id = p_challenge_id;
+
+    v_opponent := CASE WHEN v_caller = v_challenge.creator_user_id THEN v_challenge.acceptor_user_id ELSE v_challenge.creator_user_id END;
+
+    INSERT INTO public.notifications (user_id, title, body, category, related_id)
+    VALUES (v_opponent, 'Result submitted',
+        'Your opponent submitted a result for your Rs. ' || v_challenge.stake_amount || ' challenge. Awaiting admin confirmation.', 'challenge', p_challenge_id);
+
+    INSERT INTO public.notifications (user_id, title, body, category, related_id)
+    SELECT id, '🛠️ Challenge result to review', 'A challenge result needs confirmation.', 'admin', p_challenge_id
+    FROM public.profiles WHERE role IN ('admin', 'moderator');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Internal/public split, same reasoning as _payout_tournament_prize_internal
+-- / payout_tournament_prize (PostgREST exposes every public-schema function
+-- as an RPC regardless of naming intent, so the internal one carries no
+-- permission check and the public wrapper re-adds it). The status check
+-- doubles as the idempotency guard against double payout.
+CREATE OR REPLACE FUNCTION public._payout_challenge_internal(p_challenge_id UUID, p_winner_user_id UUID)
+RETURNS void AS $$
+DECLARE
+    v_challenge public.challenges;
+    v_payout NUMERIC(10,2);
+BEGIN
+    SELECT * INTO v_challenge FROM public.challenges WHERE id = p_challenge_id;
+    IF v_challenge IS NULL THEN
+        RAISE EXCEPTION 'Challenge not found';
+    END IF;
+
+    IF v_challenge.status != 'awaiting_review' THEN
+        RAISE EXCEPTION 'This challenge does not have a result awaiting confirmation';
+    END IF;
+
+    IF p_winner_user_id != v_challenge.creator_user_id AND p_winner_user_id != v_challenge.acceptor_user_id THEN
+        RAISE EXCEPTION 'The winner must be one of the two challenge participants';
+    END IF;
+
+    -- Winner takes both stakes, minus a 1% platform rake (kept, not credited
+    -- anywhere -- same implicit-revenue convention as every other fee
+    -- deduction in this file, e.g. mission entry fees).
+    v_payout := ROUND(v_challenge.stake_amount * 2 * 0.99, 2);
+
+    UPDATE public.wallets SET balance = balance + v_payout, updated_at = NOW() WHERE id = p_winner_user_id;
+
+    UPDATE public.challenges
+    SET status = 'completed', winner_user_id = p_winner_user_id, completed_at = NOW()
+    WHERE id = p_challenge_id;
+
+    INSERT INTO public.notifications (user_id, title, body, category, related_id)
+    VALUES (p_winner_user_id, '🏆 You won the challenge!', 'Rs. ' || v_payout || ' has been credited to your wallet.', 'challenge', p_challenge_id);
+
+    INSERT INTO public.notifications (user_id, title, body, category, related_id)
+    VALUES (
+        CASE WHEN p_winner_user_id = v_challenge.creator_user_id THEN v_challenge.acceptor_user_id ELSE v_challenge.creator_user_id END,
+        'Challenge result', 'You lost this Rs. ' || v_challenge.stake_amount || ' challenge.', 'challenge', p_challenge_id
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION public.confirm_challenge_result(p_challenge_id UUID, p_winner_user_id UUID)
+RETURNS void AS $$
+BEGIN
+    IF NOT public.is_admin() THEN
+        RAISE EXCEPTION 'Only admins can confirm challenge results';
+    END IF;
+    PERFORM public._payout_challenge_internal(p_challenge_id, p_winner_user_id);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_publication_tables
+        WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'challenges'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.challenges;
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_publication_tables
+        WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'challenge_messages'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.challenge_messages;
+    END IF;
+END $$;
+
+-- Roster-picker search for challenge creation/acceptance -- same shape as
+-- search_verified_players, but scoped by game_type instead of a tournament
+-- (there's no tournament to exclude "already on a team" against, and a
+-- challenge roster is chosen fresh in one shot rather than built up over
+-- days like a tournament registration is).
+CREATE OR REPLACE FUNCTION public.search_verified_players_for_challenge(p_game_type TEXT, p_query TEXT DEFAULT '')
+RETURNS TABLE (
+    id UUID,
+    display_name TEXT,
+    avatar_url TEXT,
+    in_game_id TEXT
+) AS $$
+DECLARE
+    v_caller UUID := auth.uid();
+    v_game_id_type TEXT;
+BEGIN
+    IF v_caller IS NULL THEN
+        RAISE EXCEPTION 'Not authenticated';
+    END IF;
+
+    v_game_id_type := public.tournament_game_id_type(p_game_type);
+
+    RETURN QUERY
+    SELECT p.id, p.display_name, p.avatar_url, g.in_game_id
+    FROM public.profiles p
+    JOIN public.game_id_links g ON g.user_id = p.id
+    WHERE g.game_type = v_game_id_type
+      AND g.status = 'verified'
+      AND p.id != v_caller
+      AND p.display_name ILIKE '%' || p_query || '%'
+    ORDER BY p.display_name
+    LIMIT 20;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;

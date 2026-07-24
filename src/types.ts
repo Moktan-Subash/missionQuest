@@ -107,7 +107,7 @@ export interface Notification {
   user_id: string;
   title: string;
   body: string;
-  category: 'broadcast' | 'mission' | 'payout' | 'deposit' | 'membership' | 'tournament' | 'game_id' | 'support' | 'admin' | 'account';
+  category: 'broadcast' | 'mission' | 'payout' | 'deposit' | 'membership' | 'tournament' | 'game_id' | 'support' | 'admin' | 'account' | 'challenge';
   related_id: string | null;
   is_read: boolean;
   read_at: string | null;
@@ -250,5 +250,49 @@ export interface AnalyticsData {
   missionBreakdown: MissionEarningBreakdown[];
 }
 
-export type Tab = 'missions' | 'leaderboard' | 'wallet' | 'membership' | 'profile' | 'admin' | 'notifications' | 'tournaments';
-export const VALID_TABS: Tab[] = ['missions', 'leaderboard', 'wallet', 'membership', 'profile', 'admin', 'notifications', 'tournaments'];
+export interface ChallengeTeamMember {
+  id: string;
+  challenge_id: string;
+  side: 'creator' | 'acceptor';
+  user_id: string;
+  is_captain: boolean;
+  added_at: string;
+  profile?: Profile;
+}
+
+export interface ChallengeMessage {
+  id: string;
+  challenge_id: string;
+  sender_user_id: string;
+  body: string;
+  created_at: string;
+  profile?: Profile;
+}
+
+export interface Challenge {
+  id: string;
+  game_type: Tournament['game_type'];
+  mode: 'solo' | 'team';
+  team_size: number | null;
+  stake_amount: number;
+  status: 'open' | 'accepted' | 'awaiting_review' | 'completed' | 'cancelled' | 'expired';
+  creator_user_id: string;
+  creator_team_name: string | null;
+  acceptor_user_id: string | null;
+  acceptor_team_name: string | null;
+  proposed_winner_user_id: string | null;
+  result_proof_url: string | null;
+  result_submitted_by: string | null;
+  result_submitted_at: string | null;
+  winner_user_id: string | null;
+  created_at: string;
+  expires_at: string;
+  accepted_at: string | null;
+  completed_at: string | null;
+  creator_profile?: Profile;
+  acceptor_profile?: Profile;
+  team_members?: ChallengeTeamMember[];
+}
+
+export type Tab = 'missions' | 'leaderboard' | 'wallet' | 'membership' | 'profile' | 'admin' | 'notifications' | 'tournaments' | 'challenges';
+export const VALID_TABS: Tab[] = ['missions', 'leaderboard', 'wallet', 'membership', 'profile', 'admin', 'notifications', 'tournaments', 'challenges'];
