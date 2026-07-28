@@ -2984,9 +2984,15 @@ DECLARE
     v_caller UUID := auth.uid();
     v_game_id_type TEXT;
     v_result public.challenges;
+    v_tier TEXT;
 BEGIN
     IF v_caller IS NULL THEN
         RAISE EXCEPTION 'Not authenticated';
+    END IF;
+
+    SELECT membership_tier INTO v_tier FROM public.profiles WHERE id = v_caller;
+    IF v_tier IS NULL OR v_tier = 'free' THEN
+        RAISE EXCEPTION 'Challenges are a Bronze/Gold membership perk -- upgrade to create one';
     END IF;
 
     IF p_mode NOT IN ('solo', 'team') THEN
@@ -3085,9 +3091,15 @@ DECLARE
     v_challenge public.challenges;
     v_game_id_type TEXT;
     v_claimed public.challenges;
+    v_tier TEXT;
 BEGIN
     IF v_caller IS NULL THEN
         RAISE EXCEPTION 'Not authenticated';
+    END IF;
+
+    SELECT membership_tier INTO v_tier FROM public.profiles WHERE id = v_caller;
+    IF v_tier IS NULL OR v_tier = 'free' THEN
+        RAISE EXCEPTION 'Challenges are a Bronze/Gold membership perk -- upgrade to accept one';
     END IF;
 
     SELECT * INTO v_challenge FROM public.challenges WHERE id = p_challenge_id;
@@ -3570,3 +3582,30 @@ ALTER TABLE public.mission_attempts
 UPDATE public.mission_attempts
 SET screenshot_urls = ARRAY[screenshot_url]
 WHERE screenshot_url IS NOT NULL AND screenshot_urls = '{}';
+
+-- ============================================================================
+-- 22. PUBLIC PLAYER PROFILE: completed mission history for the leaderboard's
+-- "click a player" detail view. profiles is already publicly readable (see
+-- "Public profiles are viewable by everyone"), but mission_attempts is not
+-- (own rows only) -- this SECURITY DEFINER function exposes just the safe,
+-- already-approved subset (title/game/reward, no screenshots/video/rejection
+-- reasons) for any player, not just the caller.
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION public.get_player_completed_missions(p_user_id UUID)
+RETURNS TABLE (
+    mission_title TEXT,
+    game TEXT,
+    reward_amount NUMERIC,
+    xp_reward INTEGER,
+    submitted_at TIMESTAMPTZ
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT m.title, m.game, m.reward_amount, m.xp_reward, ma.submitted_at
+    FROM public.mission_attempts ma
+    JOIN public.missions m ON m.id = ma.mission_id
+    WHERE ma.user_id = p_user_id AND ma.status = 'approved'
+    ORDER BY ma.submitted_at DESC NULLS LAST;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;

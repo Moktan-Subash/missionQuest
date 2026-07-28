@@ -117,7 +117,11 @@ function TournamentsScreen({
 
             return (
               <div key={t.id} className={`mission-card tournament-card-${t.game_type.toLowerCase()}`}>
-                <div className="mission-card-image-wrap">
+                <div
+                  className="mission-card-image-wrap"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setExpandedTournamentId(expandedTournamentId === t.id ? null : t.id)}
+                >
                   {t.banner_url ? (
                     <img src={t.banner_url} alt="" className="mission-card-img" />
                   ) : (
@@ -129,61 +133,49 @@ function TournamentsScreen({
                   <span className={`floating-badge floating-badge-difficulty badge badge-${t.status}`}>{STATUS_LABEL[t.status]}</span>
                 </div>
                 <div className="mission-card-body">
-                  <h3 className="mission-card-title">{t.title}</h3>
-                  <div className="mission-card-info-row">
-                    <div className="info-item info-item-reward">💰 Rs. {t.prize_pool.toLocaleString()}</div>
-                    {t.xp_reward > 0 && <div className="info-item">⭐ {t.xp_reward} XP</div>}
-                    <div className="info-item">{t.registered_count}/{t.min_participants} {unit}</div>
+                  <div
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => setExpandedTournamentId(expandedTournamentId === t.id ? null : t.id)}
+                  >
+                    <h3 className="mission-card-title">{t.title}</h3>
+                    <div className="mission-card-info-row">
+                      <div className="info-item info-item-reward">💰 Rs. {t.prize_pool.toLocaleString()}</div>
+                      {t.xp_reward > 0 && <div className="info-item">⭐ {t.xp_reward} XP</div>}
+                      <div className="info-item">{t.registered_count}/{t.min_participants} {unit}</div>
+                    </div>
+
+                    {(t.registration_deadline || t.start_date) && (
+                      <div className="mission-card-info-row" style={{ marginTop: '-10px' }}>
+                        {t.registration_deadline && (
+                          <div className="info-item" style={{ fontSize: '0.75rem' }}>
+                            🕒 Reg. closes {new Date(t.registration_deadline).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        )}
+                        {t.start_date && (
+                          <div className="info-item" style={{ fontSize: '0.75rem' }}>
+                            🚀 Starts {new Date(t.start_date).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div style={{ marginBottom: '12px' }}>
+                      <div className="tournament-progress-track">
+                        <div
+                          className={`tournament-progress-fill ${minReached ? 'min-reached' : ''}`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      {minReached && <div style={{ color: 'var(--success)', fontWeight: 700, fontSize: '0.75rem', marginTop: '4px' }}>✅ Minimum reached!</div>}
+                    </div>
+
+                    {expandedTournamentId === t.id && (t.description || t.rules) && (
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '10px', background: '#090B15', padding: '12px', borderRadius: '8px', border: '1px solid #1A1F38' }}>
+                        {t.description && <p style={{ marginBottom: '8px', color: '#fff' }}>{t.description}</p>}
+                        {t.rules && <p style={{ color: '#94A3B8' }}><strong>Rules:</strong> {t.rules}</p>}
+                      </div>
+                    )}
                   </div>
-
-                  {(t.registration_deadline || t.start_date) && (
-                    <div className="mission-card-info-row" style={{ marginTop: '-10px' }}>
-                      {t.registration_deadline && (
-                        <div className="info-item" style={{ fontSize: '0.75rem' }}>
-                          🕒 Reg. closes {new Date(t.registration_deadline).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                        </div>
-                      )}
-                      {t.start_date && (
-                        <div className="info-item" style={{ fontSize: '0.75rem' }}>
-                          🚀 Starts {new Date(t.start_date).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  <div style={{ marginBottom: '12px' }}>
-                    <div className="tournament-progress-track">
-                      <div
-                        className={`tournament-progress-fill ${minReached ? 'min-reached' : ''}`}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    {minReached && <div style={{ color: 'var(--success)', fontWeight: 700, fontSize: '0.75rem', marginTop: '4px' }}>✅ Minimum reached!</div>}
-                  </div>
-
-                  {expandedTournamentId === t.id ? (
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '10px', background: '#090B15', padding: '12px', borderRadius: '8px', border: '1px solid #1A1F38' }}>
-                      {t.description && <p style={{ marginBottom: '8px', color: '#fff' }}>{t.description}</p>}
-                      {t.rules && <p style={{ color: '#94A3B8' }}><strong>Rules:</strong> {t.rules}</p>}
-                      <button
-                        type="button"
-                        style={{ background: 'none', border: 'none', color: '#64748B', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', textAlign: 'left', marginTop: '6px', padding: '0' }}
-                        onClick={() => setExpandedTournamentId(null)}
-                      >
-                        Hide details
-                      </button>
-                    </div>
-                  ) : (
-                    (t.description || t.rules) && (
-                      <button
-                        type="button"
-                        style={{ background: 'none', border: 'none', color: '#2563EB', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', textAlign: 'left', marginBottom: '10px', padding: '0' }}
-                        onClick={() => setExpandedTournamentId(t.id)}
-                      >
-                        Show rules & details...
-                      </button>
-                    )
-                  )}
 
                   <button
                     type="button"

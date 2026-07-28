@@ -260,6 +260,17 @@ export interface AnalyticsData {
   missionBreakdown: MissionEarningBreakdown[];
 }
 
+// Row shape returned by public.get_player_completed_missions -- the safe,
+// already-approved-only subset of another player's mission history, shown
+// on the leaderboard's player detail view.
+export interface PlayerCompletedMission {
+  mission_title: string;
+  game: string;
+  reward_amount: number;
+  xp_reward: number;
+  submitted_at: string | null;
+}
+
 export interface ChallengeTeamMember {
   id: string;
   challenge_id: string;

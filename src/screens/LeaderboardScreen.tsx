@@ -3,6 +3,7 @@ interface LeaderboardScreenProps {
   user: any;
   leaderboardPeriod: 'all' | 'week' | 'month';
   setLeaderboardPeriod: (period: 'all' | 'week' | 'month') => void;
+  openPlayerProfile: (playerId: string) => void;
 }
 
 const PERIOD_LABEL: Record<'all' | 'week' | 'month', string> = {
@@ -11,9 +12,9 @@ const PERIOD_LABEL: Record<'all' | 'week' | 'month', string> = {
   month: 'this month',
 };
 
-function PodiumCard({ player, rank, user }: { player: any; rank: 1 | 2 | 3; user: any }) {
+function PodiumCard({ player, rank, user, openPlayerProfile }: { player: any; rank: 1 | 2 | 3; user: any; openPlayerProfile: (playerId: string) => void }) {
   return (
-    <div className={`podium-card podium-rank-${rank}`}>
+    <div className={`podium-card podium-rank-${rank}`} style={{ cursor: 'pointer' }} onClick={() => openPlayerProfile(player.id)}>
       {rank === 1 && <span className="podium-crown">👑</span>}
       <div className="podium-avatar-ring">
         <img src={player.avatar_url || 'https://www.gravatar.com/avatar?d=mp'} className="podium-avatar" alt="" />
@@ -29,7 +30,7 @@ function PodiumCard({ player, rank, user }: { player: any; rank: 1 | 2 | 3; user
   );
 }
 
-function LeaderboardScreen({ leaderboard, user, leaderboardPeriod, setLeaderboardPeriod }: LeaderboardScreenProps) {
+function LeaderboardScreen({ leaderboard, user, leaderboardPeriod, setLeaderboardPeriod, openPlayerProfile }: LeaderboardScreenProps) {
   const top3 = leaderboard.slice(0, 3);
   const rest = leaderboard.slice(3);
   const totalXp = leaderboard.reduce((sum, p) => sum + p.xp, 0);
@@ -68,9 +69,9 @@ function LeaderboardScreen({ leaderboard, user, leaderboardPeriod, setLeaderboar
           </div>
 
           <div className="podium">
-            {top3[1] && <PodiumCard player={top3[1]} rank={2} user={user} />}
-            {top3[0] && <PodiumCard player={top3[0]} rank={1} user={user} />}
-            {top3[2] && <PodiumCard player={top3[2]} rank={3} user={user} />}
+            {top3[1] && <PodiumCard player={top3[1]} rank={2} user={user} openPlayerProfile={openPlayerProfile} />}
+            {top3[0] && <PodiumCard player={top3[0]} rank={1} user={user} openPlayerProfile={openPlayerProfile} />}
+            {top3[2] && <PodiumCard player={top3[2]} rank={3} user={user} openPlayerProfile={openPlayerProfile} />}
           </div>
 
           {rest.length > 0 && (
@@ -86,7 +87,7 @@ function LeaderboardScreen({ leaderboard, user, leaderboardPeriod, setLeaderboar
                 </thead>
                 <tbody>
                   {rest.map((player, index) => (
-                    <tr key={player.id} className="leaderboard-row">
+                    <tr key={player.id} className="leaderboard-row" style={{ cursor: 'pointer' }} onClick={() => openPlayerProfile(player.id)}>
                       <td style={{ paddingLeft: '1.5rem' }}>
                         <span className="rank-badge">{index + 4}</span>
                       </td>

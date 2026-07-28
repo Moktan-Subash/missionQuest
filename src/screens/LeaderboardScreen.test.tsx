@@ -13,6 +13,7 @@ const defaultProps = {
   user: null as unknown,
   leaderboardPeriod: 'all' as const,
   setLeaderboardPeriod: vi.fn(),
+  openPlayerProfile: vi.fn(),
 };
 
 describe('LeaderboardScreen', () => {
@@ -54,5 +55,13 @@ describe('LeaderboardScreen', () => {
     render(<LeaderboardScreen {...defaultProps} leaderboardPeriod="week" />);
     expect(screen.getByRole('button', { name: 'Weekly' }).className).toContain('active');
     expect(screen.getByRole('button', { name: 'All-Time' }).className).not.toContain('active');
+  });
+
+  it('calls openPlayerProfile with the player id when a podium card is clicked', async () => {
+    const openPlayerProfile = vi.fn();
+    const user = userEvent.setup();
+    render(<LeaderboardScreen {...defaultProps} openPlayerProfile={openPlayerProfile} />);
+    await user.click(screen.getByText('Sujal'));
+    expect(openPlayerProfile).toHaveBeenCalledWith('p1');
   });
 });

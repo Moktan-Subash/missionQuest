@@ -85,7 +85,12 @@ function MissionsScreen({
           else if (needsPayment) acceptLabel = `Pay Rs. ${missionFee} to Play`;
 
           return (
-            <div key={mission.id} className={`mission-card ${mission.game.toLowerCase().includes('pubg') ? 'card-pubg' : 'card-mlbb'}`}>
+            <div
+              key={mission.id}
+              className={`mission-card ${mission.game.toLowerCase().includes('pubg') ? 'card-pubg' : 'card-mlbb'}`}
+              style={{ cursor: 'pointer' }}
+              onClick={() => setExpandedMissionId(isExpanded ? null : mission.id)}
+            >
               <div className="mission-card-body">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
                   <h3 className="mission-card-title">{mission.title}</h3>
@@ -109,33 +114,19 @@ function MissionsScreen({
                   )}
                 </div>
 
-                {isExpanded ? (
+                {isExpanded && (
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '16px', background: '#090B15', padding: '12px', borderRadius: '8px', border: '1px solid #1A1F38', width: '100%' }}>
                     <p style={{ marginBottom: '8px', color: '#fff' }}>{mission.description}</p>
                     <p style={{ color: '#94A3B8' }}><strong>Rules:</strong> {mission.rules}</p>
                     <p style={{ marginTop: '6px', color: 'var(--warning)', fontWeight: 600 }}>+{mission.xp_reward} XP Reward</p>
                   </div>
-                ) : (
-                  <button
-                    type="button"
-                    style={{ background: 'none', border: 'none', color: '#2563EB', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', textAlign: 'left', marginBottom: '16px', padding: '0' }}
-                    onClick={() => setExpandedMissionId(mission.id)}
-                  >
-                    Show rules & details...
-                  </button>
-                )}
-                {isExpanded && (
-                  <button
-                    type="button"
-                    style={{ background: 'none', border: 'none', color: '#64748B', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', textAlign: 'left', marginBottom: '16px', padding: '0' }}
-                    onClick={() => setExpandedMissionId(null)}
-                  >
-                    Hide details
-                  </button>
                 )}
 
                 <button
-                  onClick={() => handleStartMission(mission)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleStartMission(mission);
+                  }}
                   disabled={!!maxedOutMission || !!(user && activeAttempt !== null)}
                   className="btn-accept"
                 >

@@ -29,6 +29,7 @@ import {
   type AnalyticsData,
   type Challenge,
   type ChallengeMessage,
+  type PlayerCompletedMission,
 } from './types';
 import Navbar from './components/Navbar';
 import BackgroundDecoration from './components/BackgroundDecoration';
@@ -45,6 +46,8 @@ import ChallengesScreen from './screens/ChallengesScreen';
 import AdminScreen from './screens/admin/AdminScreen';
 import AdminLoginScreen, { AdminAccessDenied } from './screens/admin/AdminLoginScreen';
 import AdminNavbar from './components/AdminNavbar';
+import ToastContainer from './components/ToastContainer';
+import ConfirmDialog from './components/ConfirmDialog';
 import LoginModal from './components/modals/LoginModal';
 import WithdrawModal from './components/modals/WithdrawModal';
 import AddMoneyModal from './components/modals/AddMoneyModal';
@@ -52,6 +55,7 @@ import MembershipUpgradeModal from './components/modals/MembershipUpgradeModal';
 import PhoneVerificationModal from './components/modals/PhoneVerificationModal';
 import MissionFormModal from './components/modals/MissionFormModal';
 import PlayerDetailModal from './components/modals/PlayerDetailModal';
+import PlayerProfileModal from './components/modals/PlayerProfileModal';
 import SupportTicketModal from './components/modals/SupportTicketModal';
 import FeedbackModal from './components/modals/FeedbackModal';
 import DeleteAccountModal from './components/modals/DeleteAccountModal';
@@ -86,6 +90,23 @@ function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [authError, setAuthError] = useState('');
 
+  // In-app replacements for the browser's native alert()/confirm() -- every
+  // call site below uses showToast/confirmDialog instead so the message is
+  // styled like the rest of the app instead of a "localhost says..." popup.
+  const [toasts, setToasts] = useState<{ id: number; message: string; type: 'success' | 'error' }[]>([]);
+  const toastIdRef = useRef(0);
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    const id = ++toastIdRef.current;
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 5000);
+  };
+  const dismissToast = (id: number) => setToasts((prev) => prev.filter((t) => t.id !== id));
+
+  const [confirmState, setConfirmState] = useState<{ message: string; resolve: (value: boolean) => void } | null>(null);
+  const confirmDialog = (message: string): Promise<boolean> => {
+    return new Promise((resolve) => setConfirmState({ message, resolve }));
+  };
+
   // Main UI states
   const pathTab = location.pathname.slice(1);
   const activeTab: Tab = VALID_TABS.includes(pathTab as Tab) ? (pathTab as Tab) : 'missions';
@@ -98,6 +119,9 @@ function App() {
   const [attempts, setAttempts] = useState<MissionAttempt[]>([]);
   const [activeAttempt, setActiveAttempt] = useState<MissionAttempt | null>(null);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
+  const [viewingPublicPlayer, setViewingPublicPlayer] = useState<Profile | null>(null);
+  const [viewingPublicPlayerMissions, setViewingPublicPlayerMissions] = useState<PlayerCompletedMission[]>([]);
+  const [loadingPublicPlayerMissions, setLoadingPublicPlayerMissions] = useState(false);
   const [payouts, setPayouts] = useState<PayoutRequest[]>([]);
   const [deposits, setDeposits] = useState<DepositRequest[]>([]);
   const [missionFees, setMissionFees] = useState<Record<string, number>>({});
@@ -414,7 +438,7 @@ function App() {
       clearTimeout(idleTimer);
       idleTimer = setTimeout(async () => {
         await supabase.auth.signOut();
-        alert("You've been signed out after 45 minutes of inactivity.");
+        showToast("You've been signed out after 45 minutes of inactivity.", 'error');
       }, IDLE_TIMEOUT_MS);
     };
 
@@ -730,7 +754,7 @@ function App() {
   };
 
   const handleCancelMission = async (attemptId: string) => {
-    if (!window.confirm("Cancel this mission? It will still count towards today's mission limit.")) return;
+    if (!(await confirmDialog("Cancel this mission? It will still count towards today's mission limit."))) return;
 
     const { error } = await supabase
       .from('mission_attempts')
@@ -738,7 +762,7 @@ function App() {
       .eq('id', attemptId);
 
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
       setActiveAttempt(null);
       if (user) fetchUserData(user.id);
@@ -794,7 +818,7 @@ function App() {
         setAuthLoading(false);
         // setShowLoginModal(false) already fired optimistically on sign-in
         // before this async check resolved, so surface this immediately too.
-        alert('This account has been deactivated. Contact support to reactivate it.');
+        showToast('This account has been deactivated. Contact support to reactivate it.', 'error');
         return;
       }
 
@@ -1129,6 +1153,26 @@ function App() {
     setLeaderboard(data || []);
   };
 
+  // Public player detail (leaderboard "click a player") -- profiles are
+  // already publicly readable, but their mission history isn't (RLS is
+  // own-rows-only), so that part goes through a dedicated SECURITY DEFINER
+  // RPC that only ever returns their already-approved missions.
+  const openPlayerProfile = async (playerId: string) => {
+    setLoadingPublicPlayerMissions(true);
+    setViewingPublicPlayerMissions([]);
+
+    const { data: playerData } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', playerId)
+      .single();
+    setViewingPublicPlayer((playerData as Profile) || null);
+
+    const { data: missionsData } = await supabase.rpc('get_player_completed_missions', { p_user_id: playerId });
+    setViewingPublicPlayerMissions((missionsData as PlayerCompletedMission[]) || []);
+    setLoadingPublicPlayerMissions(false);
+  };
+
   const fetchMissionFees = async () => {
     const { data } = await supabase
       .from('mission_difficulty_fees')
@@ -1291,7 +1335,7 @@ function App() {
     setOtpSent(false);
     setOtpInput('');
     fetchUserData(user.id);
-    alert('Phone number verified & linked successfully!');
+    showToast('Phone number verified & linked successfully!');
   };
 
   const handleStartMission = async (mission: Mission) => {
@@ -1303,7 +1347,7 @@ function App() {
     if (!profile) return;
 
     if (profile.is_banned) {
-      alert('Your account has been banned from participating in missions. Contact support if you believe this is a mistake.');
+      showToast('Your account has been banned from participating in missions. Contact support if you believe this is a mistake.', 'error');
       return;
     }
 
@@ -1315,13 +1359,13 @@ function App() {
     // }
 
     if (activeAttempt) {
-      alert('You already have an active mission running!');
+      showToast('You already have an active mission running!', 'error');
       return;
     }
 
     const sameMissionToday = attempts.filter((a) => a.mission_id === mission.id && isSameNepalDay(a.started_at)).length;
     if (sameMissionToday >= 2) {
-      alert('You have already attempted this mission the maximum number of times today.');
+      showToast('You have already attempted this mission the maximum number of times today.', 'error');
       return;
     }
 
@@ -1343,12 +1387,12 @@ function App() {
         `- You can only play one active mission at a time.\n\n` +
         `Do you want to start the quest timer now?`;
 
-    if (!window.confirm(confirmMsg)) return;
+    if (!(await confirmDialog(confirmMsg))) return;
 
     const { data, error } = await supabase.rpc('start_mission_attempt', { p_mission_id: mission.id });
 
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
       setActiveAttempt(data as MissionAttempt);
       fetchUserData(user.id);
@@ -1398,7 +1442,7 @@ function App() {
 
       if (updateError) throw updateError;
 
-      alert('Proof submitted successfully! It will be verified by an admin.');
+      showToast('Proof submitted successfully! It will be verified by an admin.');
       setActiveAttempt(null);
       setProofFiles([]);
       setProofVideoUrl('');
@@ -1406,7 +1450,7 @@ function App() {
       fetchUserData(user.id);
 
     } catch (err: any) {
-      alert('Failed to submit proof: ' + err.message);
+      showToast('Failed to submit proof: ' + err.message, 'error');
     } finally {
       setSubmittingProof(false);
     }
@@ -1449,7 +1493,7 @@ function App() {
     if (error) {
       setWithdrawError(error.message);
     } else {
-      alert('Withdrawal request submitted!');
+      showToast('Withdrawal request submitted!');
       setShowWithdrawModal(false);
       setWithdrawAmount('');
       setWithdrawDetails('');
@@ -1504,7 +1548,7 @@ function App() {
 
       if (error) throw error;
 
-      alert('Deposit request submitted! An admin will verify your payment and credit your wallet.');
+      showToast('Deposit request submitted! An admin will verify your payment and credit your wallet.');
       setShowAddMoneyModal(false);
       setDepositAmount('');
       setDepositReference('');
@@ -1546,9 +1590,9 @@ function App() {
       .eq('id', user.id);
 
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
-      alert('Switched to FREE tier.');
+      showToast('Switched to FREE tier.');
       fetchUserData(user.id);
     }
   };
@@ -1561,7 +1605,7 @@ function App() {
     if (error) {
       setMembershipError(error.message);
     } else {
-      alert(`Upgraded to ${membershipTierRequested.toUpperCase()} tier!`);
+      showToast(`Upgraded to ${membershipTierRequested.toUpperCase()} tier!`);
       setShowMembershipModal(false);
       fetchUserData(user.id);
     }
@@ -1611,7 +1655,7 @@ function App() {
 
       if (error) throw error;
 
-      alert('Upgrade request submitted! An admin will verify your payment and upgrade your tier.');
+      showToast('Upgrade request submitted! An admin will verify your payment and upgrade your tier.');
       setShowMembershipModal(false);
       setMembershipReference('');
       setMembershipProofFile(null);
@@ -1631,9 +1675,9 @@ function App() {
       .eq('id', attemptId);
 
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
-      alert('Mission approved! Payout instantly triggered.');
+      showToast('Mission approved! Payout instantly triggered.');
       fetchAdminPanelData();
       if (user) fetchUserData(user.id);
     }
@@ -1650,9 +1694,9 @@ function App() {
       .eq('id', attemptId);
 
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
-      alert('Mission submission rejected.');
+      showToast('Mission submission rejected.');
       fetchAdminPanelData();
       if (user) fetchUserData(user.id);
     }
@@ -1667,9 +1711,9 @@ function App() {
     });
 
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
-      alert('Payout processed!');
+      showToast('Payout processed!');
       fetchAdminPanelData();
       if (user) fetchUserData(user.id);
     }
@@ -1686,9 +1730,9 @@ function App() {
       .eq('id', payoutId);
 
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
-      alert('Payout rejected.');
+      showToast('Payout rejected.');
       fetchAdminPanelData();
       if (user) fetchUserData(user.id);
     }
@@ -1698,9 +1742,9 @@ function App() {
     const { error } = await supabase.rpc('approve_deposit', { p_deposit_id: depositId });
 
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
-      alert('Deposit approved! Wallet credited.');
+      showToast('Deposit approved! Wallet credited.');
       fetchAdminPanelData();
       if (user) fetchUserData(user.id);
     }
@@ -1717,9 +1761,9 @@ function App() {
       .eq('id', depositId);
 
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
-      alert('Deposit rejected.');
+      showToast('Deposit rejected.');
       fetchAdminPanelData();
       if (user) fetchUserData(user.id);
     }
@@ -1729,9 +1773,9 @@ function App() {
     const { error } = await supabase.rpc('approve_membership_upgrade', { p_request_id: requestId });
 
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
-      alert('Membership upgrade approved!');
+      showToast('Membership upgrade approved!');
       fetchAdminPanelData();
       if (user) fetchUserData(user.id);
     }
@@ -1748,9 +1792,9 @@ function App() {
       .eq('id', requestId);
 
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
-      alert('Membership request rejected.');
+      showToast('Membership request rejected.');
       fetchAdminPanelData();
       if (user) fetchUserData(user.id);
     }
@@ -1763,7 +1807,7 @@ function App() {
       .eq('id', linkId);
 
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
       fetchAdminPanelData();
     }
@@ -1777,7 +1821,7 @@ function App() {
       .eq('id', linkId);
 
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
       fetchAdminPanelData();
     }
@@ -1786,7 +1830,7 @@ function App() {
   const handleViewGameIdScreenshot = async (path: string) => {
     const { data, error } = await supabase.storage.from('game_id_screenshots').createSignedUrl(path, 300);
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
       window.open(data.signedUrl, '_blank');
     }
@@ -1797,7 +1841,7 @@ function App() {
     const { error } = await supabase.functions.invoke('verify-game-id', { body: { linkId } });
     setRetryingGameIdVerification(null);
     if (error) {
-      alert('Retry failed: ' + error.message);
+      showToast('Retry failed: ' + error.message, 'error');
     }
     fetchAdminPanelData();
   };
@@ -1893,7 +1937,7 @@ function App() {
       .eq('id', mission.id);
 
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
       fetchAdminPanelData();
       fetchMissions();
@@ -1905,7 +1949,7 @@ function App() {
     const confirmMsg = player.is_banned
       ? `Unban ${player.display_name}?`
       : `Ban ${player.display_name}? They will be blocked from starting missions or requesting withdrawals.`;
-    if (!window.confirm(confirmMsg)) return;
+    if (!(await confirmDialog(confirmMsg))) return;
 
     const { error } = await supabase
       .from('profiles')
@@ -1913,7 +1957,7 @@ function App() {
       .eq('id', player.id);
 
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
       fetchAdminPanelData();
       if (viewingPlayer?.id === player.id) {
@@ -1946,14 +1990,14 @@ function App() {
   };
 
   const handleLogout = async () => {
-    if (!window.confirm('Are you sure you want to log out?')) return;
+    if (!(await confirmDialog('Are you sure you want to log out?'))) return;
     await supabase.auth.signOut();
   };
 
   const handleSubmitKycDocument = async () => {
     const { error } = await supabase.from('profiles').update({ kyc_status: 'pending' }).eq('id', user.id);
     if (!error) {
-      alert('Verification document uploaded! Status set to pending.');
+      showToast('Verification document uploaded! Status set to pending.');
       fetchUserData(user.id);
     }
   };
@@ -2010,11 +2054,11 @@ function App() {
   };
 
   const handleUnlinkGameId = async (linkId: string, gameType: string) => {
-    if (!window.confirm(`Unlink your ${gameType} ID? You'll need to relink and re-verify to add it back.`)) return;
+    if (!(await confirmDialog(`Unlink your ${gameType} ID? You'll need to relink and re-verify to add it back.`))) return;
 
     const { error } = await supabase.from('game_id_links').delete().eq('id', linkId);
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
       fetchUserData(user.id);
     }
@@ -2046,9 +2090,9 @@ function App() {
     setSendingBroadcast(false);
 
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
-      alert('Broadcast sent to all players.');
+      showToast('Broadcast sent to all players.');
       setBroadcastForm({ title: '', body: '' });
     }
   };
@@ -2080,7 +2124,7 @@ function App() {
     if (error) {
       setSupportError(error.message);
     } else {
-      alert('Support ticket submitted. Our team will get back to you.');
+      showToast('Support ticket submitted. Our team will get back to you.');
       setSupportForm({ issue_type: 'Payment issue', description: '', contact_email: user.email || '' });
       setShowSupportModal(false);
     }
@@ -2093,7 +2137,7 @@ function App() {
       .eq('id', ticketId);
 
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
       fetchAdminPanelData();
     }
@@ -2117,9 +2161,9 @@ function App() {
     setSubmittingFeedback(false);
 
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
-      alert('Thanks for the feedback!');
+      showToast('Thanks for the feedback!');
       setShowFeedbackModal(false);
     }
   };
@@ -2339,7 +2383,7 @@ function App() {
   const handleUpdateTournamentStatus = async (tournamentId: string, status: Tournament['status']) => {
     const { error } = await supabase.from('tournaments').update({ status }).eq('id', tournamentId);
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
       fetchTournaments();
     }
@@ -2372,7 +2416,7 @@ function App() {
     const confirmMsg = tournament.bracket_style === 'elimination'
       ? 'Generate the bracket now? This locks in the current registrations and cannot be undone.'
       : 'Generate lobbies now? This locks in the current registrations and cannot be undone.';
-    if (!window.confirm(confirmMsg)) return;
+    if (!(await confirmDialog(confirmMsg))) return;
 
     setGeneratingMatches(true);
     const { error } = tournament.bracket_style === 'elimination'
@@ -2381,7 +2425,7 @@ function App() {
     setGeneratingMatches(false);
 
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
       fetchTournamentRegistrations(tournament.id);
     }
@@ -2391,7 +2435,7 @@ function App() {
     const scheduledTime = scheduledTimeLocal ? new Date(scheduledTimeLocal).toISOString() : null;
     const { error } = await supabase.rpc('set_match_scheduled_time', { p_match_id: matchId, p_scheduled_time: scheduledTime });
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
       fetchTournamentRegistrations(tournamentId);
     }
@@ -2400,7 +2444,7 @@ function App() {
   const handleCheckInForMatch = async (matchId: string) => {
     const { error } = await supabase.rpc('check_in_for_match', { p_match_id: matchId });
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else if (user) {
       fetchUserData(user.id);
     }
@@ -2428,7 +2472,7 @@ function App() {
     });
     setSendingChatMessage(false);
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
       setChatInput('');
     }
@@ -2484,7 +2528,7 @@ function App() {
   const handleConfirmMatchResult = async (matchId: string, winnerRegistrationId: string, tournamentId: string) => {
     const { error } = await supabase.rpc('confirm_match_result', { p_match_id: matchId, p_winner_registration_id: winnerRegistrationId });
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
       fetchTournamentRegistrations(tournamentId);
     }
@@ -2496,7 +2540,7 @@ function App() {
       .update({ result_placement: placement, result_points: points })
       .eq('id', participantId);
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
       fetchTournamentRegistrations(tournamentId);
     }
@@ -2505,18 +2549,18 @@ function App() {
   const handleMarkMatchCompleted = async (matchId: string, tournamentId: string) => {
     const { error } = await supabase.from('tournament_matches').update({ status: 'completed' }).eq('id', matchId);
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
       fetchTournamentRegistrations(tournamentId);
     }
   };
 
   const handleRemoveTournamentRegistration = async (registrationId: string, tournamentId: string) => {
-    if (!window.confirm('Remove this registration?')) return;
+    if (!(await confirmDialog('Remove this registration?'))) return;
 
     const { error } = await supabase.from('tournament_registrations').delete().eq('id', registrationId);
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
       fetchTournaments();
       fetchTournamentRegistrations(tournamentId);
@@ -2608,7 +2652,7 @@ function App() {
   const handleAcceptSoloChallenge = async (challenge: Challenge) => {
     const { error } = await supabase.rpc('accept_challenge', { p_challenge_id: challenge.id });
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
       fetchChallenges();
       if (user) fetchUserData(user.id);
@@ -2648,10 +2692,10 @@ function App() {
   };
 
   const handleCancelChallenge = async (challengeId: string) => {
-    if (!window.confirm('Cancel this challenge? Your stake will be refunded.')) return;
+    if (!(await confirmDialog('Cancel this challenge? Your stake will be refunded.'))) return;
     const { error } = await supabase.rpc('cancel_challenge', { p_challenge_id: challengeId });
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
       fetchChallenges();
       if (user) fetchUserData(user.id);
@@ -2680,7 +2724,7 @@ function App() {
     });
     setSendingChallengeChatMessage(false);
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
       setChallengeChatInput('');
     }
@@ -2738,7 +2782,7 @@ function App() {
   const handleConfirmChallengeResult = async (challengeId: string, winnerUserId: string) => {
     const { error } = await supabase.rpc('confirm_challenge_result', { p_challenge_id: challengeId, p_winner_user_id: winnerUserId });
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
       fetchChallenges();
       fetchAdminPanelData();
@@ -2751,13 +2795,13 @@ function App() {
     setDeactivatingAccount(false);
 
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
       setShowDeleteAccountModal(false);
       await supabase.auth.signOut();
       setUser(null);
       setProfile(null);
-      alert('Your account has been deactivated.');
+      showToast('Your account has been deactivated.');
     }
   };
 
@@ -2765,7 +2809,7 @@ function App() {
     const confirmMsg = player.is_deactivated
       ? `Reactivate ${player.display_name}'s account?`
       : `Deactivate ${player.display_name}'s account? They will be signed out and blocked from logging in.`;
-    if (!window.confirm(confirmMsg)) return;
+    if (!(await confirmDialog(confirmMsg))) return;
 
     const { error } = await supabase
       .from('profiles')
@@ -2773,7 +2817,7 @@ function App() {
       .eq('id', player.id);
 
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     } else {
       fetchAdminPanelData();
     }
@@ -2870,6 +2914,8 @@ function App() {
     const isAdminOrMod = profile?.role === 'admin' || profile?.role === 'moderator';
     return (
       <div id="root">
+        <ToastContainer toasts={toasts} dismissToast={dismissToast} />
+        <ConfirmDialog confirmState={confirmState} setConfirmState={() => setConfirmState(null)} />
         {authLoading ? (
           <div className="admin-gate">
             <div className="admin-gate-card">
@@ -3013,6 +3059,8 @@ function App() {
   return (
     <div id="root">
       <BackgroundDecoration />
+      <ToastContainer toasts={toasts} dismissToast={dismissToast} />
+      <ConfirmDialog confirmState={confirmState} setConfirmState={() => setConfirmState(null)} />
 
       {/* 1. TOP NAVBAR */}
       <Navbar user={user} profile={profile} wallet={wallet} handleLogout={handleLogout} setShowLoginModal={setShowLoginModal} handleTabClick={handleTabClick} />
@@ -3054,7 +3102,7 @@ function App() {
               💰 Tournaments
             </button>
             <button onClick={() => handleTabClick('challenges')} className={`tab-btn ${activeTab === 'challenges' ? 'active' : ''}`}>
-              ⚔️ Challenges
+              ⚔️ Challenges{user && profile?.membership_tier === 'free' ? ' 🔒' : ''}
             </button>
             <button onClick={() => handleTabClick('wallet')} className={`tab-btn ${activeTab === 'wallet' ? 'active' : ''}`}>
               💼 Wallet
@@ -3113,6 +3161,7 @@ function App() {
               user={user}
               leaderboardPeriod={leaderboardPeriod}
               setLeaderboardPeriod={setLeaderboardPeriod}
+              openPlayerProfile={openPlayerProfile}
             />
           )}
 
@@ -3196,24 +3245,36 @@ function App() {
 
           {/* SCREEN: CHALLENGES */}
           {activeTab === 'challenges' && (
-            <ChallengesScreen
-              user={user}
-              challenges={challenges}
-              myChallenges={myChallenges}
-              gameIdLinks={gameIdLinks}
-              challengeGameFilter={challengeGameFilter}
-              setChallengeGameFilter={setChallengeGameFilter}
-              setShowLoginModal={setShowLoginModal}
-              handleTabClick={handleTabClick}
-              deepLinkChallengeId={deepLinkChallengeId}
-              clearDeepLinkChallenge={() => setDeepLinkChallengeId(null)}
-              openCreateChallengeModal={openCreateChallengeModal}
-              openAcceptChallengeModal={openAcceptChallengeModal}
-              handleAcceptSoloChallenge={handleAcceptSoloChallenge}
-              handleCancelChallenge={handleCancelChallenge}
-              openChallengeChat={openChallengeChat}
-              openSubmitChallengeResultModal={openSubmitChallengeResultModal}
-            />
+            user && profile?.membership_tier === 'free' ? (
+              <div className="card" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
+                <h3 style={{ color: '#fff', marginBottom: '0.75rem' }}>⚔️ Challenges are a Bronze & Gold perk</h3>
+                <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+                  Upgrade your membership to challenge other players 1v1 or as a team for real cash stakes.
+                </p>
+                <button onClick={() => handleTabClick('membership')} className="btn btn-primary" style={{ padding: '0.6rem 1.5rem' }}>
+                  View Membership Plans
+                </button>
+              </div>
+            ) : (
+              <ChallengesScreen
+                user={user}
+                challenges={challenges}
+                myChallenges={myChallenges}
+                gameIdLinks={gameIdLinks}
+                challengeGameFilter={challengeGameFilter}
+                setChallengeGameFilter={setChallengeGameFilter}
+                setShowLoginModal={setShowLoginModal}
+                handleTabClick={handleTabClick}
+                deepLinkChallengeId={deepLinkChallengeId}
+                clearDeepLinkChallenge={() => setDeepLinkChallengeId(null)}
+                openCreateChallengeModal={openCreateChallengeModal}
+                openAcceptChallengeModal={openAcceptChallengeModal}
+                handleAcceptSoloChallenge={handleAcceptSoloChallenge}
+                handleCancelChallenge={handleCancelChallenge}
+                openChallengeChat={openChallengeChat}
+                openSubmitChallengeResultModal={openSubmitChallengeResultModal}
+              />
+            )
           )}
 
         </div>
@@ -3351,6 +3412,14 @@ function App() {
           handleDeactivateAccount={handleDeactivateAccount}
         />
       )}
+
+      {/* MODAL: PUBLIC PLAYER PROFILE (leaderboard "click a player") */}
+      <PlayerProfileModal
+        viewingPublicPlayer={viewingPublicPlayer}
+        setViewingPublicPlayer={setViewingPublicPlayer}
+        viewingPublicPlayerMissions={viewingPublicPlayerMissions}
+        loadingPublicPlayerMissions={loadingPublicPlayerMissions}
+      />
 
       {/* 14. MODAL: TOURNAMENT REGISTRATION */}
       {showTournamentRegModal && registeringTournament && (

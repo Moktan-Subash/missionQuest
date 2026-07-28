@@ -98,12 +98,28 @@ describe('MissionsScreen', () => {
     expect(setGameFilter).toHaveBeenCalledWith('MLBB');
   });
 
-  it('expands mission details when "Show rules & details..." is clicked', async () => {
+  it('expands mission details when the card is clicked', async () => {
     const setExpandedMissionId = vi.fn();
     const user = userEvent.setup();
     render(<MissionsScreen {...baseProps} setExpandedMissionId={setExpandedMissionId} />);
-    await user.click(screen.getByRole('button', { name: /show rules & details/i }));
+    await user.click(screen.getByText('Savage Dominator'));
     expect(setExpandedMissionId).toHaveBeenCalledWith('m1');
+  });
+
+  it('collapses mission details when an already-expanded card is clicked again', async () => {
+    const setExpandedMissionId = vi.fn();
+    const user = userEvent.setup();
+    render(<MissionsScreen {...baseProps} expandedMissionId="m1" setExpandedMissionId={setExpandedMissionId} />);
+    await user.click(screen.getByText('Savage Dominator'));
+    expect(setExpandedMissionId).toHaveBeenCalledWith(null);
+  });
+
+  it('does not toggle the expanded state when Accept Mission is clicked', async () => {
+    const setExpandedMissionId = vi.fn();
+    const user = userEvent.setup();
+    render(<MissionsScreen {...baseProps} setExpandedMissionId={setExpandedMissionId} />);
+    await user.click(screen.getByRole('button', { name: /accept mission/i }));
+    expect(setExpandedMissionId).not.toHaveBeenCalled();
   });
 
   it('calls handleStartMission with the mission when Accept Mission is clicked', async () => {
