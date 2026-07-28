@@ -107,7 +107,8 @@ export interface Notification {
   user_id: string;
   title: string;
   body: string;
-  category: 'broadcast' | 'mission' | 'payout' | 'deposit' | 'membership' | 'tournament' | 'game_id' | 'support' | 'admin' | 'account' | 'challenge';
+  category: 'broadcast' | 'mission' | 'payout' | 'deposit' | 'membership' | 'tournament' | 'game_id' | 'support' | 'admin' | 'account' | 'challenge'
+    | 'admin_gameid' | 'admin_mission' | 'admin_deposit' | 'admin_payout' | 'admin_membership' | 'admin_support' | 'admin_challenge';
   related_id: string | null;
   is_read: boolean;
   read_at: string | null;
@@ -294,5 +295,11 @@ export interface Challenge {
   team_members?: ChallengeTeamMember[];
 }
 
-export type Tab = 'missions' | 'leaderboard' | 'wallet' | 'membership' | 'profile' | 'admin' | 'notifications' | 'tournaments' | 'challenges';
-export const VALID_TABS: Tab[] = ['missions', 'leaderboard', 'wallet', 'membership', 'profile', 'admin', 'notifications', 'tournaments', 'challenges'];
+// 'admin' is intentionally not a Tab -- the admin dashboard lives at the
+// standalone /admin route (see App.tsx), never inside the player tab system.
+export type Tab = 'missions' | 'leaderboard' | 'wallet' | 'membership' | 'profile' | 'notifications' | 'tournaments' | 'challenges';
+export const VALID_TABS: Tab[] = ['missions', 'leaderboard', 'wallet', 'membership', 'profile', 'notifications', 'tournaments', 'challenges'];
+
+// Admin dashboard sub-sections, routed at /admin/:section (see App.tsx).
+export type AdminSection = 'missions' | 'submissions' | 'payouts' | 'deposits' | 'membership' | 'players' | 'gameids' | 'broadcast' | 'support' | 'feedback' | 'tournaments' | 'challenges' | 'analytics';
+export const ADMIN_SECTIONS: AdminSection[] = ['missions', 'submissions', 'payouts', 'deposits', 'membership', 'players', 'gameids', 'broadcast', 'support', 'feedback', 'tournaments', 'challenges', 'analytics'];

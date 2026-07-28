@@ -1,4 +1,5 @@
 import type {
+  AdminSection,
   DepositRequest,
   Feedback,
   GameIdLink,
@@ -29,7 +30,6 @@ import AdminTournaments from './AdminTournaments';
 import AdminChallenges from './AdminChallenges';
 import AdminAnalytics from './AdminAnalytics';
 
-type AdminSection = 'missions' | 'submissions' | 'payouts' | 'deposits' | 'membership' | 'players' | 'gameids' | 'broadcast' | 'support' | 'feedback' | 'tournaments' | 'challenges' | 'analytics';
 type AttemptFilter = 'all' | 'active' | 'pending_review' | 'approved' | 'rejected' | 'expired' | 'cancelled';
 
 interface AdminScreenProps {

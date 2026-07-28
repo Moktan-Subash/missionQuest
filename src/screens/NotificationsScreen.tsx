@@ -1,10 +1,10 @@
-import type { Notification, Tab } from '../types';
+import type { Notification } from '../types';
 
 interface NotificationsScreenProps {
   notifications: Notification[];
   handleMarkNotificationRead: (notificationId: string) => void;
   handleMarkAllNotificationsRead: () => void;
-  handleTabClick: (tab: Tab) => void;
+  handleNotificationClick: (n: Notification) => void;
 }
 
 const CATEGORY_ICON: Record<Notification['category'], string> = {
@@ -19,23 +19,13 @@ const CATEGORY_ICON: Record<Notification['category'], string> = {
   admin: '🛠️',
   account: '👋',
   challenge: '⚔️',
-};
-
-// Where clicking a notification should take you. Admin-facing categories
-// (new deposit/payout/membership/mission-submission/support-ticket/game-ID
-// review alerts) all land on the admin dashboard.
-const CATEGORY_TAB: Record<Notification['category'], Tab> = {
-  broadcast: 'missions',
-  mission: 'missions',
-  payout: 'wallet',
-  deposit: 'wallet',
-  membership: 'membership',
-  tournament: 'tournaments',
-  game_id: 'profile',
-  support: 'profile',
-  admin: 'admin',
-  account: 'profile',
-  challenge: 'challenges',
+  admin_gameid: '🎮',
+  admin_mission: '🎯',
+  admin_deposit: '💵',
+  admin_payout: '💰',
+  admin_membership: '⭐',
+  admin_support: '🛟',
+  admin_challenge: '⚔️',
 };
 
 function timeAgo(iso: string): string {
@@ -49,12 +39,12 @@ function timeAgo(iso: string): string {
   return `${days}d ago`;
 }
 
-function NotificationsScreen({ notifications, handleMarkNotificationRead, handleMarkAllNotificationsRead, handleTabClick }: NotificationsScreenProps) {
+function NotificationsScreen({ notifications, handleMarkNotificationRead, handleMarkAllNotificationsRead, handleNotificationClick }: NotificationsScreenProps) {
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
   const openNotification = (n: Notification) => {
     if (!n.is_read) handleMarkNotificationRead(n.id);
-    handleTabClick(CATEGORY_TAB[n.category]);
+    handleNotificationClick(n);
   };
 
   return (

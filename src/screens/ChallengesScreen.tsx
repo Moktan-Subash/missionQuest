@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import type { Challenge, GameIdLink } from '../types';
 import { TOURNAMENT_GAME_ID_TYPE } from '../types';
 import CountdownTimer from '../components/CountdownTimer';
@@ -11,6 +12,8 @@ interface ChallengesScreenProps {
   setChallengeGameFilter: (f: 'ALL' | Challenge['game_type']) => void;
   setShowLoginModal: (show: boolean) => void;
   handleTabClick: (tab: 'profile') => void;
+  deepLinkChallengeId: string | null;
+  clearDeepLinkChallenge: () => void;
   openCreateChallengeModal: () => void;
   openAcceptChallengeModal: (challenge: Challenge) => void;
   handleAcceptSoloChallenge: (challenge: Challenge) => void;
@@ -46,6 +49,8 @@ function ChallengesScreen({
   setChallengeGameFilter,
   setShowLoginModal,
   handleTabClick,
+  deepLinkChallengeId,
+  clearDeepLinkChallenge,
   openCreateChallengeModal,
   openAcceptChallengeModal,
   handleAcceptSoloChallenge,
@@ -61,6 +66,20 @@ function ChallengesScreen({
   const historyMyChallenges = myChallenges.filter((c) =>
     c.status === 'completed' || c.status === 'cancelled' || c.status === 'expired'
   );
+
+  // Notification deep-link: no dedicated detail modal here (unlike
+  // tournaments), so scroll the matching card into view and briefly
+  // highlight it instead, then clear the pending target.
+  useEffect(() => {
+    if (!deepLinkChallengeId) return;
+    const el = document.getElementById(`challenge-card-${deepLinkChallengeId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('deep-link-highlight');
+      setTimeout(() => el.classList.remove('deep-link-highlight'), 2000);
+    }
+    clearDeepLinkChallenge();
+  }, [deepLinkChallengeId, challenges, myChallenges]);
 
   return (
     <div className="screen animate-fade-in">
@@ -99,7 +118,7 @@ function ChallengesScreen({
               const isCreator = c.creator_user_id === user?.id;
               const opponentLabel = sideLabel(c, isCreator ? 'acceptor' : 'creator');
               return (
-                <div key={c.id} className="mission-card">
+                <div key={c.id} id={`challenge-card-${c.id}`} className="mission-card">
                   <div className="mission-card-image-wrap">
                     <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem' }}>
                       {GAME_ICON[c.game_type]}
@@ -147,7 +166,7 @@ function ChallengesScreen({
             const isVerified = gameIdLinks.some((link) => link.game_type === mappedGameIdType && link.status === 'verified');
 
             return (
-              <div key={c.id} className="mission-card">
+              <div key={c.id} id={`challenge-card-${c.id}`} className="mission-card">
                 <div className="mission-card-image-wrap">
                   <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem' }}>
                     {GAME_ICON[c.game_type]}
@@ -211,7 +230,7 @@ function ChallengesScreen({
               const won = c.status === 'completed' && c.winner_user_id === user?.id;
 
               return (
-                <div key={c.id} className="mission-card">
+                <div key={c.id} id={`challenge-card-${c.id}`} className="mission-card">
                   <div className="mission-card-image-wrap">
                     <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem' }}>
                       {GAME_ICON[c.game_type]}

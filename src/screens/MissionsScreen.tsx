@@ -1,4 +1,4 @@
-import type { Feedback, Mission, MissionAttempt, Profile, Tournament, Wallet } from '../types';
+import type { Mission, MissionAttempt, Profile, Wallet } from '../types';
 import { isSameNepalDay } from '../dateUtils';
 
 interface MissionsScreenProps {
@@ -14,18 +14,6 @@ interface MissionsScreenProps {
   missionFees: Record<string, number>;
   activeAttempt: MissionAttempt | null;
   handleStartMission: (mission: Mission) => void;
-  publicFeedback: Feedback[];
-  tournaments: Tournament[];
-  goToTournaments: () => void;
-}
-
-function Stars({ rating }: { rating: number }) {
-  return (
-    <span style={{ color: 'var(--warning)', letterSpacing: '1px' }}>
-      {'★'.repeat(rating)}
-      <span style={{ color: 'var(--border-color)' }}>{'★'.repeat(5 - rating)}</span>
-    </span>
-  );
 }
 
 function MissionsScreen({
@@ -41,47 +29,9 @@ function MissionsScreen({
   missionFees,
   activeAttempt,
   handleStartMission,
-  publicFeedback,
-  tournaments,
-  goToTournaments,
 }: MissionsScreenProps) {
-  const activeTournaments = tournaments.filter((t) => t.status !== 'completed' && t.status !== 'cancelled');
-  const totalTournamentPrize = activeTournaments.reduce((sum, t) => sum + t.prize_pool, 0);
-
   return (
     <div className="screen animate-fade-in">
-      {/* 0. TOURNAMENT PROMO BANNER */}
-      {activeTournaments.length > 0 && (
-        <div className="tournament-promo-banner" onClick={goToTournaments}>
-          <div>
-            <div className="tournament-promo-text">🏆 Live Tournaments — Rs. {totalTournamentPrize.toLocaleString()} Total Prize Pool</div>
-            <div className="tournament-promo-sub">Register now for MLBB &amp; PUBG tournaments before spots fill up.</div>
-          </div>
-          <button
-            className="btn btn-gold"
-            onClick={(e) => { e.stopPropagation(); goToTournaments(); }}
-          >
-            View Tournaments →
-          </button>
-        </div>
-      )}
-
-      {/* 1. ANONYMOUS GUEST VIEW: SHOW THE HERO MARKETING PORTAL */}
-      {!user && (
-        <div className="hero-section">
-          <div className="hero-badge">
-            <span className="pulse-dot"></span> Complete missions. Earn rewards. Level up.
-          </div>
-          <h1 className="hero-title">
-            Gaming Missions.<br />
-            <span className="text-real">Real</span><span className="text-rewards">Rewards.</span>
-          </h1>
-          <p className="hero-desc">
-            Join the ultimate gaming challenge platform. Complete missions in your favorite games, earn real cash rewards, and connect with gamers worldwide.
-          </p>
-        </div>
-      )}
-
       {/* 2. LOGGED-IN VIEW: SHOW A CLEAN WELCOME HEADER */}
       {user && profile && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', padding: '16px 24px', borderRadius: '12px' }}>
@@ -196,35 +146,6 @@ function MissionsScreen({
           );
         })}
       </div>
-      )}
-
-      {/* PLAYER REVIEWS: public testimonials, visible to everyone incl. guests */}
-      {publicFeedback.length > 0 && (
-        <div style={{ margin: '32px 0' }}>
-          <h3 style={{ fontSize: '1.1rem', marginBottom: '12px', textAlign: 'left' }}>
-            Player Reviews{' '}
-            <span style={{ color: 'var(--warning)', fontWeight: 700 }}>
-              ⭐ {(publicFeedback.reduce((sum, f) => sum + f.rating, 0) / publicFeedback.length).toFixed(1)}
-            </span>
-          </h3>
-          <div style={{ display: 'flex', gap: '12px', overflowX: 'auto', paddingBottom: '4px' }}>
-            {publicFeedback.map((f) => (
-              <div
-                key={f.id}
-                className="card"
-                style={{ textAlign: 'left', minWidth: '240px', maxWidth: '240px', flexShrink: 0, padding: '14px 16px' }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <strong style={{ color: '#fff', fontSize: '0.85rem' }}>{f.profile?.display_name || 'Gamer'}</strong>
-                  <Stars rating={f.rating} />
-                </div>
-                {f.comment && (
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>{f.comment}</p>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
       )}
 
       {/* MISSION ATTEMPTS HISTORY (Only visible when logged in) */}

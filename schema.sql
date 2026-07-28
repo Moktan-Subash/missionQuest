@@ -3352,6 +3352,168 @@ BEGIN
     END IF;
 END $$;
 
+-- 32. NOTIFICATION DEEP-LINKING: the generic 'admin' category was used for
+-- every admin alert (new payout/deposit/membership request, new support
+-- ticket, new mission submission, game ID needing review, challenge result
+-- to review) with no way to tell them apart other than parsing the title
+-- text -- so clicking any of them could only send an admin to the Admin tab
+-- in general, not the correct sub-section. Splitting into one category per
+-- alert type lets the client route directly. 'admin' itself stays in the
+-- CHECK (not removed) so existing historical rows already stored with it
+-- remain valid -- new rows just stop using it going forward.
+ALTER TABLE public.notifications DROP CONSTRAINT IF EXISTS notifications_category_check;
+ALTER TABLE public.notifications ADD CONSTRAINT notifications_category_check
+    CHECK (category IN (
+        'broadcast', 'mission', 'payout', 'deposit', 'membership', 'tournament',
+        'game_id', 'support', 'admin', 'account', 'challenge',
+        'admin_gameid', 'admin_mission', 'admin_deposit', 'admin_payout',
+        'admin_membership', 'admin_support', 'admin_challenge'
+    ));
+
+CREATE OR REPLACE FUNCTION public.notify_game_id_status_change()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.status = 'verified' AND OLD.status != 'verified' THEN
+        INSERT INTO public.notifications (user_id, title, body, category, related_id)
+        VALUES (NEW.user_id, 'Game ID verified', 'Your ' || NEW.game_type || ' ID "' || NEW.in_game_id || '" has been verified.', 'game_id', NEW.id);
+    ELSIF NEW.status = 'rejected' AND OLD.status != 'rejected' THEN
+        INSERT INTO public.notifications (user_id, title, body, category, related_id)
+        VALUES (NEW.user_id, 'Game ID rejected', COALESCE('Your ' || NEW.game_type || ' ID was rejected: ' || NEW.admin_notes, 'Your ' || NEW.game_type || ' ID verification was rejected.'), 'game_id', NEW.id);
+    END IF;
+
+    IF NEW.status = 'pending' AND NEW.ai_extracted_id IS NOT NULL
+       AND (OLD.ai_extracted_id IS NULL OR OLD.ai_extracted_id != NEW.ai_extracted_id) THEN
+        INSERT INTO public.notifications (user_id, title, body, category, related_id)
+        SELECT id, 'Game ID needs manual review', NEW.game_type || ' ID from a player needs manual verification (AI could not auto-confirm).', 'admin_gameid', NEW.id
+        FROM public.profiles WHERE role IN ('admin', 'moderator');
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION public.notify_mission_status_change()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.status = 'approved' AND OLD.status != 'approved' THEN
+        INSERT INTO public.notifications (user_id, title, body, category, related_id)
+        VALUES (NEW.user_id, 'Mission approved!', 'Your mission submission was approved and the reward has been credited to your wallet.', 'mission', NEW.id);
+    ELSIF NEW.status = 'rejected' AND OLD.status != 'rejected' THEN
+        INSERT INTO public.notifications (user_id, title, body, category, related_id)
+        VALUES (NEW.user_id, 'Mission rejected', COALESCE('Your mission submission was rejected: ' || NEW.rejection_reason, 'Your mission submission was rejected.'), 'mission', NEW.id);
+    ELSIF NEW.status = 'pending_review' AND OLD.status != 'pending_review' THEN
+        INSERT INTO public.notifications (user_id, title, body, category, related_id)
+        VALUES (NEW.user_id, 'Proof submitted', 'Your mission proof was submitted and is awaiting admin review.', 'mission', NEW.id);
+
+        INSERT INTO public.notifications (user_id, title, body, category, related_id)
+        SELECT id, 'New mission submission', 'A player submitted proof for review.', 'admin_mission', NEW.id
+        FROM public.profiles WHERE role IN ('admin', 'moderator');
+    ELSIF NEW.status = 'expired' AND OLD.status != 'expired' THEN
+        INSERT INTO public.notifications (user_id, title, body, category, related_id)
+        VALUES (NEW.user_id, 'Mission expired', 'Your mission attempt expired before proof was submitted.', 'mission', NEW.id);
+    ELSIF NEW.status = 'cancelled' AND OLD.status != 'cancelled' THEN
+        INSERT INTO public.notifications (user_id, title, body, category, related_id)
+        VALUES (NEW.user_id, 'Mission cancelled', 'You cancelled this mission attempt. It still counts toward today''s mission limit.', 'mission', NEW.id);
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION public.notify_new_deposit_request()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO public.notifications (user_id, title, body, category, related_id)
+    SELECT id, 'New deposit request', 'A player submitted a deposit of Rs. ' || NEW.amount || ' for review.', 'admin_deposit', NEW.id
+    FROM public.profiles WHERE role IN ('admin', 'moderator');
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION public.notify_new_payout_request()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO public.notifications (user_id, title, body, category, related_id)
+    SELECT id, 'New payout request', 'A player requested a withdrawal of Rs. ' || NEW.amount || '.', 'admin_payout', NEW.id
+    FROM public.profiles WHERE role IN ('admin', 'moderator');
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION public.notify_new_membership_request()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO public.notifications (user_id, title, body, category, related_id)
+    SELECT id, 'New membership request', 'A player requested an upgrade to ' || UPPER(NEW.tier) || '.', 'admin_membership', NEW.id
+    FROM public.profiles WHERE role IN ('admin', 'moderator');
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION public.notify_new_support_ticket()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO public.notifications (user_id, title, body, category, related_id)
+    SELECT id, 'New support ticket', NEW.issue_type || ': a player needs help.', 'admin_support', NEW.id
+    FROM public.profiles WHERE role IN ('admin', 'moderator');
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Only the admin-alert half of submit_challenge_result changes category;
+-- everything else in the function is unchanged from schema section 31.
+CREATE OR REPLACE FUNCTION public.submit_challenge_result(
+    p_challenge_id UUID,
+    p_proposed_winner_user_id UUID,
+    p_result_proof_url TEXT DEFAULT NULL
+)
+RETURNS void AS $$
+DECLARE
+    v_caller UUID := auth.uid();
+    v_challenge public.challenges;
+    v_opponent UUID;
+BEGIN
+    IF v_caller IS NULL THEN
+        RAISE EXCEPTION 'Not authenticated';
+    END IF;
+
+    SELECT * INTO v_challenge FROM public.challenges WHERE id = p_challenge_id;
+    IF v_challenge IS NULL THEN
+        RAISE EXCEPTION 'Challenge not found';
+    END IF;
+
+    IF v_challenge.status != 'accepted' THEN
+        RAISE EXCEPTION 'This challenge is not awaiting a result';
+    END IF;
+
+    IF v_caller != v_challenge.creator_user_id AND v_caller != v_challenge.acceptor_user_id THEN
+        RAISE EXCEPTION 'Only a participant in this challenge can submit a result';
+    END IF;
+
+    IF p_proposed_winner_user_id != v_challenge.creator_user_id AND p_proposed_winner_user_id != v_challenge.acceptor_user_id THEN
+        RAISE EXCEPTION 'The winner must be one of the two challenge participants';
+    END IF;
+
+    UPDATE public.challenges
+    SET status = 'awaiting_review',
+        proposed_winner_user_id = p_proposed_winner_user_id,
+        result_proof_url = p_result_proof_url,
+        result_submitted_by = v_caller,
+        result_submitted_at = NOW()
+    WHERE id = p_challenge_id;
+
+    v_opponent := CASE WHEN v_caller = v_challenge.creator_user_id THEN v_challenge.acceptor_user_id ELSE v_challenge.creator_user_id END;
+
+    INSERT INTO public.notifications (user_id, title, body, category, related_id)
+    VALUES (v_opponent, 'Result submitted',
+        'Your opponent submitted a result for your Rs. ' || v_challenge.stake_amount || ' challenge. Awaiting admin confirmation.', 'challenge', p_challenge_id);
+
+    INSERT INTO public.notifications (user_id, title, body, category, related_id)
+    SELECT id, '🛠️ Challenge result to review', 'A challenge result needs confirmation.', 'admin_challenge', p_challenge_id
+    FROM public.profiles WHERE role IN ('admin', 'moderator');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
 -- Roster-picker search for challenge creation/acceptance -- same shape as
 -- search_verified_players, but scoped by game_type instead of a tournament
 -- (there's no tournament to exclude "already on a team" against, and a

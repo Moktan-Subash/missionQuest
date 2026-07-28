@@ -62,15 +62,11 @@ const baseProps = {
   missionFees: { Easy: 0, Medium: 10, Hard: 20, Expert: 30 },
   activeAttempt: null,
   handleStartMission: vi.fn(),
-  publicFeedback: [],
-  tournaments: [],
-  goToTournaments: vi.fn(),
 };
 
 describe('MissionsScreen', () => {
-  it('shows the marketing hero for guests and hides the welcome header', () => {
+  it('hides the welcome header for guests', () => {
     render(<MissionsScreen {...baseProps} />);
-    expect(screen.getByText(/Real/)).toBeInTheDocument();
     expect(screen.queryByText(/Welcome back/)).not.toBeInTheDocument();
   });
 
@@ -129,25 +125,5 @@ describe('MissionsScreen', () => {
     expect(screen.getByText('Your Submissions')).toBeInTheDocument();
     expect(screen.getByText('approved')).toBeInTheDocument();
     expect(screen.getByText(/\+Rs\. 100/)).toBeInTheDocument();
-  });
-
-  it('shows player reviews with an average rating when feedback exists, and hides the section when empty', () => {
-    const { rerender } = render(<MissionsScreen {...baseProps} />);
-    expect(screen.queryByText(/Player Reviews/)).not.toBeInTheDocument();
-
-    rerender(
-      <MissionsScreen
-        {...baseProps}
-        publicFeedback={[
-          { id: 'f1', user_id: 'u1', rating: 5, comment: 'Great app!', created_at: '2026-01-01', profile: { ...profile, display_name: 'Sujal' } },
-          { id: 'f2', user_id: 'u2', rating: 3, comment: null, created_at: '2026-01-02', profile: { ...profile, display_name: 'Anish' } },
-        ]}
-      />
-    );
-    expect(screen.getByText(/Player Reviews/)).toBeInTheDocument();
-    expect(screen.getByText('⭐ 4.0')).toBeInTheDocument();
-    expect(screen.getByText('Sujal')).toBeInTheDocument();
-    expect(screen.getByText('Great app!')).toBeInTheDocument();
-    expect(screen.getByText('Anish')).toBeInTheDocument();
   });
 });

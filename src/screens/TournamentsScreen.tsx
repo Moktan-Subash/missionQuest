@@ -19,6 +19,8 @@ interface TournamentsScreenProps {
   openSubmitResultModal: (match: TournamentMatch) => void;
   bracketMatches: TournamentMatch[];
   fetchTournamentBracket: (tournamentId: string) => void;
+  deepLinkTournamentId: string | null;
+  clearDeepLinkTournament: () => void;
 }
 
 const CHECKIN_WINDOW_MS = 30 * 60 * 1000;
@@ -57,6 +59,8 @@ function TournamentsScreen({
   openSubmitResultModal,
   bracketMatches,
   fetchTournamentBracket,
+  deepLinkTournamentId,
+  clearDeepLinkTournament,
 }: TournamentsScreenProps) {
   // Forces a re-render every second so the check-in button appears/disappears
   // live as the 30-minute window opens, without needing a page refresh.
@@ -75,6 +79,18 @@ function TournamentsScreen({
     setDetailsTournament(t);
     fetchTournamentBracket(t.id);
   };
+
+  // Notification deep-link: open the specific tournament once it's mounted
+  // and the tournaments list has loaded, then clear the pending target so it
+  // doesn't re-trigger on every re-render.
+  useEffect(() => {
+    if (!deepLinkTournamentId) return;
+    const target = tournaments.find((t) => t.id === deepLinkTournamentId);
+    if (target) {
+      openDetails(target);
+      clearDeepLinkTournament();
+    }
+  }, [deepLinkTournamentId, tournaments]);
 
   return (
     <div className="screen animate-fade-in">

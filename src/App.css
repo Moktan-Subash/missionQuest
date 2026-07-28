@@ -74,7 +74,7 @@
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--border-color);
-  padding: 14px 0;
+  padding: 15.4px 0;
   position: sticky;
   top: 0;
   z-index: 100;
@@ -256,6 +256,161 @@
   border-radius: 50%;
   border: 1.5px solid var(--success);
   animation: pulse 1.6s infinite ease-in-out;
+}
+
+/* Homepage content sections (Featured Missions, Player Reviews) -- gives
+   each one a consistent heading treatment and breathing room, scroll-target
+   anchors for the section IDs the HomeScreen scrollspy observes. */
+.home-section {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 56px 0 8px;
+  scroll-margin-top: 90px;
+}
+
+.home-section-header {
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.home-section-title {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.home-section-subtitle {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin-top: 6px;
+}
+
+/* ---------------- PLAYER REVIEWS ---------------- */
+.reviews-summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin: 24px 0 32px;
+}
+
+.reviews-summary-score {
+  font-size: 2.75rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  background: linear-gradient(135deg, #22D3EE 0%, #A78BFA 60%, #F472B6 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.reviews-summary-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.reviews-summary-count {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.reviews-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.review-card {
+  position: relative;
+  text-align: left;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  padding: 22px 20px 20px;
+  overflow: hidden;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.review-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #22D3EE 0%, #A78BFA 55%, #F472B6 100%);
+  opacity: 0.85;
+}
+
+.review-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--border-hover);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+.review-card-quote {
+  position: absolute;
+  top: 6px;
+  right: 14px;
+  font-family: Georgia, serif;
+  font-size: 4rem;
+  line-height: 1;
+  color: #ffffff;
+  opacity: 0.05;
+  pointer-events: none;
+}
+
+.review-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.review-avatar {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #22D3EE 0%, #A78BFA 60%, #F472B6 100%);
+  color: #ffffff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  box-shadow: 0 0 12px rgba(167, 139, 250, 0.35);
+}
+
+.review-card-head-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.review-name {
+  color: #ffffff;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.review-comment {
+  position: relative;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.mission-card-preview {
+  cursor: pointer;
+}
+
+.mission-card-preview:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-hover);
 }
 
 @keyframes pulse {
@@ -458,6 +613,13 @@
   transform: translateY(-2px);
   border-color: var(--border-hover);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+/* Briefly highlights a card scrolled to via a notification deep-link
+   (e.g. clicking a challenge notification) so it's obvious which one. */
+.mission-card.deep-link-highlight {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(63, 131, 248, 0.35), 0 10px 30px rgba(0, 0, 0, 0.4);
 }
 
 .mission-card-image-wrap {
@@ -1590,4 +1752,195 @@
   font-size: 0.8rem;
   color: var(--text-muted);
   margin-top: 2px;
+}
+
+
+/* ---------------- STANDALONE ADMIN LOGIN / ACCESS GATE ----------------
+   Rendered only at the /admin route, entirely separate from the player
+   Navbar/tabs/footer -- full-viewport page, not a modal. */
+.admin-gate {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.admin-gate-card {
+  width: 100%;
+  max-width: 380px;
+  text-align: center;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 40px 32px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+}
+
+.admin-gate-badge {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.admin-gate-badge-denied {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.admin-gate-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 8px;
+}
+
+.admin-gate-subtitle {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-bottom: 24px;
+}
+
+.admin-gate-error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  margin-bottom: 16px;
+  text-align: left;
+}
+
+.admin-gate-google-btn {
+  width: 100%;
+  padding: 12px 16px;
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
+}
+
+.admin-gate-footnote {
+  margin-top: 20px;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+/* ---------------- ADMIN NAVBAR (standalone /admin page) ---------------- */
+.admin-navbar {
+  border-bottom-color: rgba(245, 158, 11, 0.25);
+}
+
+.admin-logo-icon-circle {
+  background: linear-gradient(135deg, #F59E0B 0%, #F43F5E 100%);
+}
+
+.admin-notification-wrap {
+  position: relative;
+}
+
+.admin-notification-bell {
+  position: relative;
+  background: none;
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.admin-notification-bell:hover {
+  border-color: var(--border-hover);
+}
+
+.admin-notification-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.admin-notification-dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 320px;
+  max-height: 400px;
+  overflow-y: auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  z-index: 200;
+}
+
+.admin-notification-empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.admin-notification-item {
+  padding: 12px 16px;
+  text-align: left;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.admin-notification-item:last-child {
+  border-bottom: none;
+}
+
+.admin-notification-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.admin-notification-item-unread {
+  background: rgba(245, 158, 11, 0.05);
+}
+
+.admin-notification-item-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: #fff;
+}
+
+.admin-notification-item-head span {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.admin-notification-item p {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+  line-height: 1.4;
 }

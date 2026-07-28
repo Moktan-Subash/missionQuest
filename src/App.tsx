@@ -6,7 +6,9 @@ import './App.css';
 import {
   GAME_OPTIONS,
   VALID_TABS,
+  ADMIN_SECTIONS,
   type Tab,
+  type AdminSection,
   type Profile,
   type Wallet,
   type Mission,
@@ -31,6 +33,7 @@ import {
 import Navbar from './components/Navbar';
 import BackgroundDecoration from './components/BackgroundDecoration';
 import ActiveMissionBanner from './components/ActiveMissionBanner';
+import HomeScreen from './screens/HomeScreen';
 import MissionsScreen from './screens/MissionsScreen';
 import LeaderboardScreen from './screens/LeaderboardScreen';
 import WalletScreen from './screens/WalletScreen';
@@ -40,6 +43,8 @@ import NotificationsScreen from './screens/NotificationsScreen';
 import TournamentsScreen from './screens/TournamentsScreen';
 import ChallengesScreen from './screens/ChallengesScreen';
 import AdminScreen from './screens/admin/AdminScreen';
+import AdminLoginScreen, { AdminAccessDenied } from './screens/admin/AdminLoginScreen';
+import AdminNavbar from './components/AdminNavbar';
 import LoginModal from './components/modals/LoginModal';
 import WithdrawModal from './components/modals/WithdrawModal';
 import AddMoneyModal from './components/modals/AddMoneyModal';
@@ -139,6 +144,11 @@ function App() {
   const [myMatches, setMyMatches] = useState<TournamentMatch[]>([]);
   const [adminTournamentMatches, setAdminTournamentMatches] = useState<TournamentMatch[]>([]);
   const [bracketMatches, setBracketMatches] = useState<TournamentMatch[]>([]);
+  // Set by handleNotificationClick when a tournament/challenge notification
+  // is clicked, so the target screen can auto-open/scroll to that specific
+  // item once it mounts, then clear itself.
+  const [deepLinkTournamentId, setDeepLinkTournamentId] = useState<string | null>(null);
+  const [deepLinkChallengeId, setDeepLinkChallengeId] = useState<string | null>(null);
   const [generatingMatches, setGeneratingMatches] = useState(false);
   const [showMatchChatModal, setShowMatchChatModal] = useState(false);
   const [chattingMatch, setChattingMatch] = useState<TournamentMatch | null>(null);
@@ -270,8 +280,11 @@ function App() {
   const [adminRejectionReason, setAdminRejectionReason] = useState<{[key: string]: string}>({});
   const [adminTxId, setAdminTxId] = useState<{[key: string]: string}>({});
 
-  // Admin Dashboard: sub-navigation
-  const [adminSection, setAdminSection] = useState<'missions' | 'submissions' | 'payouts' | 'deposits' | 'membership' | 'players' | 'gameids' | 'broadcast' | 'support' | 'feedback' | 'tournaments' | 'challenges' | 'analytics'>('missions');
+  // Admin Dashboard: sub-navigation is real routing (/admin/:section), not
+  // local-only state -- bookmarkable, survives reload, back button works.
+  const adminSectionFromPath = location.pathname.replace(/^\/admin\/?/, '') as AdminSection;
+  const adminSection: AdminSection = ADMIN_SECTIONS.includes(adminSectionFromPath) ? adminSectionFromPath : 'missions';
+  const setAdminSection = (section: AdminSection) => navigate(`/admin/${section}`);
   const [, setAdminClockTick] = useState(0);
 
   // Admin: Mission Manager
@@ -525,29 +538,37 @@ function App() {
     fetchLeaderboard(leaderboardPeriod);
   }, [leaderboardPeriod]);
 
-  // 2b. Redirect root / unknown paths to the Missions tab. /terms and /privacy
-  // are static pages outside the Tab system, so they're allowlisted here.
+  // 2b. Redirect unknown paths to the Missions tab. /terms and /privacy are
+  // static pages outside the Tab system, / is the standalone landing page
+  // (HomeScreen), and /admin is the standalone admin dashboard (its own
+  // login gate, rendered before the player shell below) -- all allowlisted
+  // here so they don't bounce.
   useEffect(() => {
     if (STATIC_PAGES.includes(location.pathname)) return;
+    if (location.pathname === '/') return;
+    if (location.pathname.startsWith('/admin')) return;
     if (!VALID_TABS.includes(location.pathname.slice(1) as Tab)) {
       navigate('/missions', { replace: true });
     }
   }, [location.pathname, navigate]);
 
-  // 2c. Redirect away from account-only tabs (wallet/profile) if logged out,
-  // and away from /admin if logged out or not an admin/moderator
+  // 2c. Redirect away from account-only tabs (wallet/profile) if logged out.
   useEffect(() => {
     if (authLoading) return;
     const accountTabs: Tab[] = ['wallet', 'profile', 'notifications'];
     if (!user && accountTabs.includes(activeTab)) {
       navigate('/missions', { replace: true });
-      return;
     }
-    const isAdminOrMod = profile?.role === 'admin' || profile?.role === 'moderator';
-    if (activeTab === 'admin' && (!user || !isAdminOrMod)) {
-      navigate('/missions', { replace: true });
+  }, [user, activeTab, authLoading, navigate]);
+
+  // 2d. Landing on bare /admin (no section) as an authorized admin/moderator
+  // drops straight into the missions section, same as opening a normal app.
+  useEffect(() => {
+    if (authLoading || location.pathname !== '/admin') return;
+    if (user && (profile?.role === 'admin' || profile?.role === 'moderator')) {
+      navigate('/admin/missions', { replace: true });
     }
-  }, [user, profile, activeTab, authLoading, navigate]);
+  }, [location.pathname, authLoading, user, profile, navigate]);
 
   // 3. Keep Active Mission Timer Updated
   useEffect(() => {
@@ -906,7 +927,9 @@ function App() {
         .order('created_at', { ascending: false });
       setMyChallenges((myChallengesData as Challenge[]) || []);
 
-      if (profileData.role === 'admin' || profileData.role === 'moderator') {
+      // Only load admin data when actually on the standalone /admin page --
+      // an admin/moderator browsing the normal player app is just a player.
+      if ((profileData.role === 'admin' || profileData.role === 'moderator') && window.location.pathname.startsWith('/admin')) {
         fetchAdminPanelData();
       }
 
@@ -1171,6 +1194,20 @@ function App() {
       provider: 'google',
       options: {
         redirectTo: window.location.origin,
+      },
+    });
+    if (error) setAuthError(error.message);
+  };
+
+  // Same OAuth flow as the player sign-in, but redirects back to /admin
+  // afterwards instead of the homepage -- used only by the standalone
+  // admin login page.
+  const handleAdminGoogleLogin = async () => {
+    setAuthError('');
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/admin`,
       },
     });
     if (error) setAuthError(error.message);
@@ -2738,6 +2775,61 @@ function App() {
     navigate(`/${tab}`);
   };
 
+  // Central click-routing for notifications. Most categories just land on a
+  // general tab (existing CATEGORY_TAB-style behavior below), but tournament/
+  // challenge carry a related_id pointing at one specific item, and every
+  // admin_* category carries an admin sub-section to jump straight into --
+  // both handled here since NotificationsScreen shouldn't need to know about
+  // adminSection or the tournament/challenge screens' internal state.
+  const ADMIN_SECTION_BY_CATEGORY: Partial<Record<Notification['category'], typeof adminSection>> = {
+    admin_gameid: 'gameids',
+    admin_mission: 'submissions',
+    admin_deposit: 'deposits',
+    admin_payout: 'payouts',
+    admin_membership: 'membership',
+    admin_support: 'support',
+    admin_challenge: 'challenges',
+  };
+
+  // Only non-admin categories land on a normal player tab; every admin_*
+  // category (plus the generic 'admin' one) instead navigates to the
+  // standalone /admin page below.
+  const NOTIFICATION_TAB: Partial<Record<Notification['category'], Tab>> = {
+    broadcast: 'missions',
+    mission: 'missions',
+    payout: 'wallet',
+    deposit: 'wallet',
+    membership: 'membership',
+    tournament: 'tournaments',
+    game_id: 'profile',
+    support: 'profile',
+    account: 'profile',
+    challenge: 'challenges',
+  };
+
+  const handleNotificationClick = (n: Notification) => {
+    const adminTarget = ADMIN_SECTION_BY_CATEGORY[n.category];
+    if (adminTarget) {
+      // setAdminSection navigates straight to /admin/<section> -- calling
+      // navigate('/admin') afterwards would overwrite that back to the bare
+      // /admin route, which then bounces to the default Missions section.
+      setAdminSection(adminTarget);
+      fetchAdminPanelData();
+      return;
+    }
+    if (n.category === 'admin') {
+      fetchAdminPanelData();
+      navigate('/admin');
+      return;
+    }
+    if (n.category === 'tournament' && n.related_id) {
+      setDeepLinkTournamentId(n.related_id);
+    } else if (n.category === 'challenge' && n.related_id) {
+      setDeepLinkChallengeId(n.related_id);
+    }
+    handleTabClick(NOTIFICATION_TAB[n.category] || 'missions');
+  };
+
   const filteredMissions = missions.filter((m) => {
     if (gameFilter === 'ALL') return true;
     const gameLower = m.game.toLowerCase();
@@ -2751,6 +2843,155 @@ function App() {
 
   const unreadNotificationCount = notifications.filter((n) => !n.is_read).length;
 
+  // STANDALONE ADMIN PAGE -- entirely separate from the player app below:
+  // no Navbar, no player tabs, no footer. Every visitor here is either shown
+  // a dedicated admin login gate or, once authenticated as admin/moderator,
+  // the real admin dashboard. Everyone else, everywhere else in this app,
+  // is just a player.
+  if (location.pathname.startsWith('/admin')) {
+    const isAdminOrMod = profile?.role === 'admin' || profile?.role === 'moderator';
+    return (
+      <div id="root">
+        {authLoading ? (
+          <div className="admin-gate">
+            <div className="admin-gate-card">
+              <h1 className="admin-gate-title">Loading...</h1>
+            </div>
+          </div>
+        ) : !user ? (
+          <AdminLoginScreen authError={authError} handleAdminGoogleLogin={handleAdminGoogleLogin} />
+        ) : !isAdminOrMod ? (
+          <AdminAccessDenied email={user.email} handleLogout={handleLogout} />
+        ) : (
+          <>
+          <AdminNavbar
+            notifications={notifications}
+            handleMarkNotificationRead={handleMarkNotificationRead}
+            handleNotificationClick={handleNotificationClick}
+            handleLogout={handleLogout}
+          />
+          <AdminScreen
+            adminSection={adminSection}
+            setAdminSection={setAdminSection}
+            fetchAdminPanelData={fetchAdminPanelData}
+            user={user}
+            adminMissions={adminMissions}
+            openAddMissionModal={openAddMissionModal}
+            openEditMissionModal={openEditMissionModal}
+            handleToggleMissionActive={handleToggleMissionActive}
+            allActiveAttempts={allActiveAttempts}
+            allPendingSubmissions={allPendingSubmissions}
+            allAttempts={allAttempts}
+            attemptFilter={attemptFilter}
+            setAttemptFilter={setAttemptFilter}
+            adminRejectionReason={adminRejectionReason}
+            setAdminRejectionReason={setAdminRejectionReason}
+            handleAdminApproveSubmission={handleAdminApproveSubmission}
+            handleAdminRejectSubmission={handleAdminRejectSubmission}
+            formatCountdown={formatCountdown}
+            allPendingPayouts={allPendingPayouts}
+            allPayouts={allPayouts}
+            adminTxId={adminTxId}
+            setAdminTxId={setAdminTxId}
+            handleAdminProcessPayout={handleAdminProcessPayout}
+            handleAdminRejectPayout={handleAdminRejectPayout}
+            allPendingDeposits={allPendingDeposits}
+            allDeposits={allDeposits}
+            handleAdminApproveDeposit={handleAdminApproveDeposit}
+            handleAdminRejectDeposit={handleAdminRejectDeposit}
+            allPendingMembershipRequests={allPendingMembershipRequests}
+            allMembershipRequests={allMembershipRequests}
+            handleAdminApproveMembership={handleAdminApproveMembership}
+            handleAdminRejectMembership={handleAdminRejectMembership}
+            adminPlayers={adminPlayers}
+            playerSearch={playerSearch}
+            setPlayerSearch={setPlayerSearch}
+            openPlayerDetail={openPlayerDetail}
+            handleTogglePlayerBan={handleTogglePlayerBan}
+            handleToggleAccountDeactivation={handleToggleAccountDeactivation}
+            allPendingGameIdLinks={allPendingGameIdLinks}
+            allGameIdLinks={allGameIdLinks}
+            handleAdminVerifyGameId={handleAdminVerifyGameId}
+            handleAdminRejectGameId={handleAdminRejectGameId}
+            handleViewGameIdScreenshot={handleViewGameIdScreenshot}
+            handleRetryGameIdVerification={handleRetryGameIdVerification}
+            retryingGameIdVerification={retryingGameIdVerification}
+            broadcastForm={broadcastForm}
+            setBroadcastForm={setBroadcastForm}
+            sendingBroadcast={sendingBroadcast}
+            handleSendBroadcast={handleSendBroadcast}
+            allSupportTickets={allSupportTickets}
+            handleAdminUpdateSupportTicketStatus={handleAdminUpdateSupportTicketStatus}
+            allFeedback={allFeedback}
+            tournaments={tournaments}
+            openCreateTournamentModal={openCreateTournamentModal}
+            openEditTournamentModal={openEditTournamentModal}
+            handleUpdateTournamentStatus={handleUpdateTournamentStatus}
+            adminTournamentRegistrations={adminTournamentRegistrations}
+            adminTournamentTeamMembers={adminTournamentTeamMembers}
+            adminTournamentMatches={adminTournamentMatches}
+            fetchTournamentRegistrations={fetchTournamentRegistrations}
+            handleRemoveTournamentRegistration={handleRemoveTournamentRegistration}
+            handleGenerateMatches={handleGenerateMatches}
+            generatingMatches={generatingMatches}
+            handleSetScheduledTime={handleSetScheduledTime}
+            handleConfirmMatchResult={handleConfirmMatchResult}
+            handleUpdateLobbyResult={handleUpdateLobbyResult}
+            handleMarkMatchCompleted={handleMarkMatchCompleted}
+            adminPendingChallenges={adminPendingChallenges}
+            handleConfirmChallengeResult={handleConfirmChallengeResult}
+            analyticsData={analyticsData}
+            loadingAnalytics={loadingAnalytics}
+            fetchAnalyticsData={fetchAnalyticsData}
+          />
+
+          {/* MODAL: ADD / EDIT MISSION */}
+          {showMissionModal && (
+            <MissionFormModal
+              editingMissionId={editingMissionId}
+              setShowMissionModal={setShowMissionModal}
+              missionFormError={missionFormError}
+              missionForm={missionForm}
+              setMissionForm={setMissionForm}
+              gameOptions={GAME_OPTIONS}
+              handleSaveMission={handleSaveMission}
+            />
+          )}
+
+          {/* MODAL: PLAYER DETAIL */}
+          {viewingPlayer && (
+            <PlayerDetailModal
+              viewingPlayer={viewingPlayer}
+              setViewingPlayer={setViewingPlayer}
+              viewingPlayerWallet={viewingPlayerWallet}
+              viewingPlayerLoading={viewingPlayerLoading}
+              viewingPlayerAttempts={viewingPlayerAttempts}
+              handleTogglePlayerBan={handleTogglePlayerBan}
+              user={user}
+            />
+          )}
+
+          {/* MODAL: CREATE/EDIT TOURNAMENT */}
+          {showTournamentFormModal && (
+            <TournamentFormModal
+              setShowTournamentFormModal={setShowTournamentFormModal}
+              tournamentForm={tournamentForm}
+              setTournamentForm={setTournamentForm}
+              editingTournamentId={editingTournamentId}
+              tournamentFormError={tournamentFormError}
+              handleSaveTournament={handleSaveTournament}
+              tournamentBannerFile={tournamentBannerFile}
+              setTournamentBannerFile={setTournamentBannerFile}
+              existingBannerUrl={editingTournamentBannerUrl}
+              savingTournament={savingTournament}
+            />
+          )}
+          </>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div id="root">
       <BackgroundDecoration />
@@ -2758,8 +2999,20 @@ function App() {
       {/* 1. TOP NAVBAR */}
       <Navbar user={user} profile={profile} wallet={wallet} handleLogout={handleLogout} setShowLoginModal={setShowLoginModal} handleTabClick={handleTabClick} />
 
-      {/* 2. STATIC LEGAL PAGES (outside the Tab system) */}
-      {STATIC_PAGES.includes(location.pathname) ? (
+      {/* 2. STANDALONE LANDING PAGE (outside the Tab system, same page for
+          everyone regardless of login state -- the missions board itself
+          only lives at /missions now) */}
+      {location.pathname === '/' ? (
+        <div className="container" style={{ paddingBottom: '3rem' }}>
+          <HomeScreen
+            publicFeedback={publicFeedback}
+            filteredMissions={filteredMissions}
+            gameFilter={gameFilter}
+            setGameFilter={setGameFilter}
+            goToMissions={() => handleTabClick('missions')}
+          />
+        </div>
+      ) : STATIC_PAGES.includes(location.pathname) ? (
         <div className="container" style={{ paddingBottom: '3rem' }}>
           {location.pathname === '/terms' ? <TermsScreen /> : <PrivacyScreen />}
         </div>
@@ -2799,11 +3052,6 @@ function App() {
                 🔔 Notifications{unreadNotificationCount > 0 ? ` (${unreadNotificationCount})` : ''}
               </button>
             )}
-            {user && (profile?.role === 'admin' || profile?.role === 'moderator') && (
-              <button onClick={() => handleTabClick('admin')} className={`tab-btn ${activeTab === 'admin' ? 'active' : ''}`} style={{ border: '1px solid var(--warning)', color: 'var(--warning)' }}>
-                🛠️ Admin Control
-              </button>
-            )}
           </div>
 
           {/* ACTIVE MISSION BLOCK */}
@@ -2833,9 +3081,6 @@ function App() {
               missionFees={missionFees}
               activeAttempt={activeAttempt}
               handleStartMission={handleStartMission}
-              publicFeedback={publicFeedback}
-              tournaments={tournaments}
-              goToTournaments={() => handleTabClick('tournaments')}
             />
           )}
 
@@ -2900,7 +3145,7 @@ function App() {
               notifications={notifications}
               handleMarkNotificationRead={handleMarkNotificationRead}
               handleMarkAllNotificationsRead={handleMarkAllNotificationsRead}
-              handleTabClick={handleTabClick}
+              handleNotificationClick={handleNotificationClick}
             />
           )}
 
@@ -2922,6 +3167,8 @@ function App() {
               openSubmitResultModal={openSubmitResultModal}
               bracketMatches={bracketMatches}
               fetchTournamentBracket={fetchTournamentBracket}
+              deepLinkTournamentId={deepLinkTournamentId}
+              clearDeepLinkTournament={() => setDeepLinkTournamentId(null)}
             />
           )}
 
@@ -2936,6 +3183,8 @@ function App() {
               setChallengeGameFilter={setChallengeGameFilter}
               setShowLoginModal={setShowLoginModal}
               handleTabClick={handleTabClick}
+              deepLinkChallengeId={deepLinkChallengeId}
+              clearDeepLinkChallenge={() => setDeepLinkChallengeId(null)}
               openCreateChallengeModal={openCreateChallengeModal}
               openAcceptChallengeModal={openAcceptChallengeModal}
               handleAcceptSoloChallenge={handleAcceptSoloChallenge}
@@ -2945,83 +3194,6 @@ function App() {
             />
           )}
 
-          {/* SCREEN: REAL ADMIN DASHBOARD */}
-          {user && activeTab === 'admin' && (profile?.role === 'admin' || profile?.role === 'moderator') && (
-            <AdminScreen
-              adminSection={adminSection}
-              setAdminSection={setAdminSection}
-              fetchAdminPanelData={fetchAdminPanelData}
-              user={user}
-              adminMissions={adminMissions}
-              openAddMissionModal={openAddMissionModal}
-              openEditMissionModal={openEditMissionModal}
-              handleToggleMissionActive={handleToggleMissionActive}
-              allActiveAttempts={allActiveAttempts}
-              allPendingSubmissions={allPendingSubmissions}
-              allAttempts={allAttempts}
-              attemptFilter={attemptFilter}
-              setAttemptFilter={setAttemptFilter}
-              adminRejectionReason={adminRejectionReason}
-              setAdminRejectionReason={setAdminRejectionReason}
-              handleAdminApproveSubmission={handleAdminApproveSubmission}
-              handleAdminRejectSubmission={handleAdminRejectSubmission}
-              formatCountdown={formatCountdown}
-              allPendingPayouts={allPendingPayouts}
-              allPayouts={allPayouts}
-              adminTxId={adminTxId}
-              setAdminTxId={setAdminTxId}
-              handleAdminProcessPayout={handleAdminProcessPayout}
-              handleAdminRejectPayout={handleAdminRejectPayout}
-              allPendingDeposits={allPendingDeposits}
-              allDeposits={allDeposits}
-              handleAdminApproveDeposit={handleAdminApproveDeposit}
-              handleAdminRejectDeposit={handleAdminRejectDeposit}
-              allPendingMembershipRequests={allPendingMembershipRequests}
-              allMembershipRequests={allMembershipRequests}
-              handleAdminApproveMembership={handleAdminApproveMembership}
-              handleAdminRejectMembership={handleAdminRejectMembership}
-              adminPlayers={adminPlayers}
-              playerSearch={playerSearch}
-              setPlayerSearch={setPlayerSearch}
-              openPlayerDetail={openPlayerDetail}
-              handleTogglePlayerBan={handleTogglePlayerBan}
-              handleToggleAccountDeactivation={handleToggleAccountDeactivation}
-              allPendingGameIdLinks={allPendingGameIdLinks}
-              allGameIdLinks={allGameIdLinks}
-              handleAdminVerifyGameId={handleAdminVerifyGameId}
-              handleAdminRejectGameId={handleAdminRejectGameId}
-              handleViewGameIdScreenshot={handleViewGameIdScreenshot}
-              handleRetryGameIdVerification={handleRetryGameIdVerification}
-              retryingGameIdVerification={retryingGameIdVerification}
-              broadcastForm={broadcastForm}
-              setBroadcastForm={setBroadcastForm}
-              sendingBroadcast={sendingBroadcast}
-              handleSendBroadcast={handleSendBroadcast}
-              allSupportTickets={allSupportTickets}
-              handleAdminUpdateSupportTicketStatus={handleAdminUpdateSupportTicketStatus}
-              allFeedback={allFeedback}
-              tournaments={tournaments}
-              openCreateTournamentModal={openCreateTournamentModal}
-              openEditTournamentModal={openEditTournamentModal}
-              handleUpdateTournamentStatus={handleUpdateTournamentStatus}
-              adminTournamentRegistrations={adminTournamentRegistrations}
-              adminTournamentTeamMembers={adminTournamentTeamMembers}
-              adminTournamentMatches={adminTournamentMatches}
-              fetchTournamentRegistrations={fetchTournamentRegistrations}
-              handleRemoveTournamentRegistration={handleRemoveTournamentRegistration}
-              handleGenerateMatches={handleGenerateMatches}
-              generatingMatches={generatingMatches}
-              handleSetScheduledTime={handleSetScheduledTime}
-              handleConfirmMatchResult={handleConfirmMatchResult}
-              handleUpdateLobbyResult={handleUpdateLobbyResult}
-              handleMarkMatchCompleted={handleMarkMatchCompleted}
-              adminPendingChallenges={adminPendingChallenges}
-              handleConfirmChallengeResult={handleConfirmChallengeResult}
-              analyticsData={analyticsData}
-              loadingAnalytics={loadingAnalytics}
-              fetchAnalyticsData={fetchAnalyticsData}
-            />
-          )}
         </div>
       )}
 
@@ -3123,32 +3295,6 @@ function App() {
           handleVerifyOTP={handleVerifyOTP}
           handleResendOTP={handleResendOTP}
           handleCancelPhoneVerification={handleCancelPhoneVerification}
-        />
-      )}
-
-      {/* 9. MODAL: ADD / EDIT MISSION (ADMIN) */}
-      {showMissionModal && (
-        <MissionFormModal
-          editingMissionId={editingMissionId}
-          setShowMissionModal={setShowMissionModal}
-          missionFormError={missionFormError}
-          missionForm={missionForm}
-          setMissionForm={setMissionForm}
-          gameOptions={GAME_OPTIONS}
-          handleSaveMission={handleSaveMission}
-        />
-      )}
-
-      {/* 10. MODAL: PLAYER DETAIL (ADMIN) */}
-      {viewingPlayer && (
-        <PlayerDetailModal
-          viewingPlayer={viewingPlayer}
-          setViewingPlayer={setViewingPlayer}
-          viewingPlayerWallet={viewingPlayerWallet}
-          viewingPlayerLoading={viewingPlayerLoading}
-          viewingPlayerAttempts={viewingPlayerAttempts}
-          handleTogglePlayerBan={handleTogglePlayerBan}
-          user={user}
         />
       )}
 
@@ -3315,21 +3461,6 @@ function App() {
         />
       )}
 
-      {/* 15. MODAL: ADMIN CREATE/EDIT TOURNAMENT */}
-      {showTournamentFormModal && (
-        <TournamentFormModal
-          setShowTournamentFormModal={setShowTournamentFormModal}
-          tournamentForm={tournamentForm}
-          setTournamentForm={setTournamentForm}
-          editingTournamentId={editingTournamentId}
-          tournamentFormError={tournamentFormError}
-          handleSaveTournament={handleSaveTournament}
-          tournamentBannerFile={tournamentBannerFile}
-          setTournamentBannerFile={setTournamentBannerFile}
-          existingBannerUrl={editingTournamentBannerUrl}
-          savingTournament={savingTournament}
-        />
-      )}
     </div>
   );
 }
