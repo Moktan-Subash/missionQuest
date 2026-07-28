@@ -39,7 +39,9 @@ const activeAttempt: MissionAttempt = {
   mission_id: 'm1',
   started_at: '2026-07-14T00:00:00.000Z',
   expires_at: '2026-07-17T00:00:00.000Z',
-  screenshot_url: null,
+  screenshot_urls: [],
+  video_url: null,
+  video_timestamp: null,
   status: 'active',
   rejection_reason: null,
   submitted_at: null,
@@ -52,7 +54,7 @@ const pendingAttempt: MissionAttempt = {
   ...activeAttempt,
   id: 'att2',
   status: 'pending_review',
-  screenshot_url: 'https://example.com/proof.png',
+  screenshot_urls: ['https://example.com/proof.png'],
   submitted_at: '2026-07-14T02:00:00.000Z',
 };
 

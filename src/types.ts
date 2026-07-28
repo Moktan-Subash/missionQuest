@@ -30,6 +30,10 @@ export interface Mission {
   difficulty?: 'Easy' | 'Medium' | 'Hard' | 'Expert';
   is_active: boolean;
   duration_days?: number;
+  // When true, proof submission also accepts a player-hosted video link
+  // (YouTube/Drive/etc, never uploaded to or compressed by us) alongside
+  // the required screenshots. When false, screenshots only.
+  allows_video_link?: boolean;
 }
 
 export interface MissionAttempt {
@@ -38,7 +42,12 @@ export interface MissionAttempt {
   mission_id: string;
   started_at: string;
   expires_at: string;
-  screenshot_url: string | null;
+  // Up to 3 screenshot URLs, always required regardless of allows_video_link.
+  screenshot_urls: string[];
+  // Player-hosted video link + optional "proof appears around" marker --
+  // only used/required when mission.allows_video_link is true.
+  video_url: string | null;
+  video_timestamp: string | null;
   status: 'active' | 'pending_review' | 'approved' | 'rejected' | 'expired' | 'cancelled';
   rejection_reason: string | null;
   submitted_at: string | null;

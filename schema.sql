@@ -3548,3 +3548,25 @@ BEGIN
     LIMIT 20;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================================================
+-- 21. MISSION PROOF: multi-screenshot + optional video link
+-- Missions can now optionally accept a video link (e.g. YouTube/Google Drive,
+-- hosted by the player themselves -- we never store/compress video
+-- ourselves) alongside up to 3 screenshots, instead of a single screenshot.
+-- Existing screenshot_url values are backfilled into the new array column;
+-- the old column is left in place (unused going forward) rather than
+-- dropped, since it may still hold data on the live project.
+-- ============================================================================
+
+ALTER TABLE public.missions
+    ADD COLUMN IF NOT EXISTS allows_video_link BOOLEAN NOT NULL DEFAULT false;
+
+ALTER TABLE public.mission_attempts
+    ADD COLUMN IF NOT EXISTS screenshot_urls TEXT[] NOT NULL DEFAULT '{}',
+    ADD COLUMN IF NOT EXISTS video_url TEXT,
+    ADD COLUMN IF NOT EXISTS video_timestamp TEXT;
+
+UPDATE public.mission_attempts
+SET screenshot_urls = ARRAY[screenshot_url]
+WHERE screenshot_url IS NOT NULL AND screenshot_urls = '{}';

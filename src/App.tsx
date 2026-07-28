@@ -221,7 +221,9 @@ function App() {
 
   // Action/Modal states
   const [submittingProof, setSubmittingProof] = useState(false);
-  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofFiles, setProofFiles] = useState<File[]>([]);
+  const [proofVideoUrl, setProofVideoUrl] = useState('');
+  const [proofVideoTimestamp, setProofVideoTimestamp] = useState('');
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [showAddMoneyModal, setShowAddMoneyModal] = useState(false);
   const [showPhoneModal, setShowPhoneModal] = useState(false);
@@ -300,7 +302,8 @@ function App() {
     xp_reward: '',
     rules: '',
     difficulty: 'Medium' as 'Easy' | 'Medium' | 'Hard' | 'Expert',
-    is_active: true
+    is_active: true,
+    allows_video_link: false
   });
   const [missionFormError, setMissionFormError] = useState('');
 
@@ -1354,30 +1357,40 @@ function App() {
 
   const handleProofSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeAttempt || !proofFile || !user) return;
+    if (!activeAttempt || !user || proofFiles.length === 0) return;
+    const requiresVideo = !!activeAttempt.mission?.allows_video_link;
+    if (requiresVideo && !proofVideoUrl.trim()) return;
 
     setSubmittingProof(true);
     try {
-      const fileExt = proofFile.name.split('.').pop();
-      const fileName = `${user.id}/${activeAttempt.id}_${Date.now()}.${fileExt}`;
-      
-      const { error: uploadError } = await supabase.storage
-        .from('proof_photo')
-        .upload(fileName, proofFile, {
-          cacheControl: '3600',
-          upsert: true
-        });
+      const screenshotUrls: string[] = [];
+      for (let i = 0; i < proofFiles.length; i++) {
+        const file = proofFiles[i];
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${user.id}/${activeAttempt.id}_${Date.now()}_${i}.${fileExt}`;
 
-      if (uploadError) throw uploadError;
+        const { error: uploadError } = await supabase.storage
+          .from('proof_photo')
+          .upload(fileName, file, {
+            cacheControl: '3600',
+            upsert: true
+          });
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('proof_photo')
-        .getPublicUrl(fileName);
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('proof_photo')
+          .getPublicUrl(fileName);
+
+        screenshotUrls.push(publicUrl);
+      }
 
       const { error: updateError } = await supabase
         .from('mission_attempts')
         .update({
-          screenshot_url: publicUrl,
+          screenshot_urls: screenshotUrls,
+          video_url: requiresVideo ? proofVideoUrl.trim() : null,
+          video_timestamp: requiresVideo && proofVideoTimestamp.trim() ? proofVideoTimestamp.trim() : null,
           status: 'pending_review',
           submitted_at: new Date().toISOString(),
         })
@@ -1387,7 +1400,9 @@ function App() {
 
       alert('Proof submitted successfully! It will be verified by an admin.');
       setActiveAttempt(null);
-      setProofFile(null);
+      setProofFiles([]);
+      setProofVideoUrl('');
+      setProofVideoTimestamp('');
       fetchUserData(user.id);
 
     } catch (err: any) {
@@ -1799,7 +1814,8 @@ function App() {
       xp_reward: '',
       rules: '',
       difficulty: 'Medium',
-      is_active: true
+      is_active: true,
+      allows_video_link: false
     });
     setMissionFormError('');
     setShowMissionModal(true);
@@ -1817,7 +1833,8 @@ function App() {
       xp_reward: String(mission.xp_reward),
       rules: mission.rules,
       difficulty: mission.difficulty || 'Medium',
-      is_active: mission.is_active
+      is_active: mission.is_active,
+      allows_video_link: !!mission.allows_video_link
     });
     setMissionFormError('');
     setShowMissionModal(true);
@@ -1852,7 +1869,8 @@ function App() {
       xp_reward: xpNum,
       rules: missionForm.rules,
       difficulty: missionForm.difficulty,
-      is_active: missionForm.is_active
+      is_active: missionForm.is_active,
+      allows_video_link: missionForm.allows_video_link
     };
 
     const { error } = editingMissionId
@@ -3059,8 +3077,12 @@ function App() {
             user={user}
             activeAttempt={activeAttempt}
             timeRemaining={timeRemaining}
-            proofFile={proofFile}
-            setProofFile={setProofFile}
+            proofFiles={proofFiles}
+            setProofFiles={setProofFiles}
+            proofVideoUrl={proofVideoUrl}
+            setProofVideoUrl={setProofVideoUrl}
+            proofVideoTimestamp={proofVideoTimestamp}
+            setProofVideoTimestamp={setProofVideoTimestamp}
             submittingProof={submittingProof}
             handleProofSubmit={handleProofSubmit}
             handleCancelMission={handleCancelMission}

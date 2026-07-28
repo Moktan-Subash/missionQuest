@@ -71,14 +71,31 @@ function AdminSubmissions({
               </div>
 
               <div style={{ marginBottom: '1rem' }}>
-                <p style={{ fontSize: '0.85rem', marginBottom: '0.5rem', color: 'var(--text-muted)' }}>Screenshot Proof:</p>
-                <a href={sub.screenshot_url || ''} target="_blank" rel="noreferrer">
-                  <img
-                    src={sub.screenshot_url || ''}
-                    alt="Proof"
-                    style={{ maxWidth: '100%', maxHeight: '300px', border: '1px solid var(--border-color)', borderRadius: '8px' }}
-                  />
-                </a>
+                <p style={{ fontSize: '0.85rem', marginBottom: '0.5rem', color: 'var(--text-muted)' }}>
+                  Screenshot Proof ({sub.screenshot_urls.length}):
+                </p>
+                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  {sub.screenshot_urls.map((url, i) => (
+                    <a key={url} href={url} target="_blank" rel="noreferrer">
+                      <img
+                        src={url}
+                        alt={`Proof ${i + 1}`}
+                        style={{ maxWidth: '220px', maxHeight: '220px', border: '1px solid var(--border-color)', borderRadius: '8px' }}
+                      />
+                    </a>
+                  ))}
+                </div>
+
+                {sub.video_url && (
+                  <div style={{ marginTop: '0.75rem', fontSize: '0.85rem' }}>
+                    <a href={sub.video_url} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>
+                      ▶ Watch submitted video ↗
+                    </a>
+                    {sub.video_timestamp && (
+                      <span style={{ color: 'var(--text-muted)' }}> -- proof appears around {sub.video_timestamp}</span>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>

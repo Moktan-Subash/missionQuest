@@ -14,6 +14,7 @@ const baseForm = {
   rules: 'Screenshot of the kill feed.',
   difficulty: 'Hard' as const,
   is_active: true,
+  allows_video_link: false,
 };
 
 const baseProps = {

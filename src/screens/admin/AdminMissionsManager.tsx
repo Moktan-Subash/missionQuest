@@ -40,6 +40,11 @@ function AdminMissionsManager({
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-main)', marginTop: '6px', fontWeight: 600 }}>
                   Rs. {m.reward_amount.toFixed(0)} · {m.xp_reward} XP
                 </p>
+                {m.allows_video_link && (
+                  <p style={{ fontSize: '0.7rem', color: 'var(--accent)', marginTop: '4px' }}>
+                    🎥 Video link required
+                  </p>
+                )}
               </div>
               <div>
                 <span style={{ display: 'inline-block', fontSize: '0.7rem', fontWeight: 600, padding: '3px 8px', borderRadius: '6px', marginBottom: '8px', background: m.is_active ? 'rgba(16, 185, 129, 0.1)' : 'rgba(113, 113, 122, 0.15)', color: m.is_active ? 'var(--success)' : 'var(--text-dim)' }}>

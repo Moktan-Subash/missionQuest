@@ -8,6 +8,7 @@ interface MissionFormState {
   rules: string;
   difficulty: 'Easy' | 'Medium' | 'Hard' | 'Expert';
   is_active: boolean;
+  allows_video_link: boolean;
 }
 
 interface MissionFormModalProps {
@@ -159,6 +160,18 @@ function MissionFormModal({
                 Active (visible to players)
               </label>
             </div>
+          </div>
+
+          <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '10px' }}>
+            <input
+              type="checkbox"
+              id="mission-allows-video-checkbox"
+              checked={missionForm.allows_video_link}
+              onChange={(e) => setMissionForm({ ...missionForm, allows_video_link: e.target.checked })}
+            />
+            <label htmlFor="mission-allows-video-checkbox" className="form-label" style={{ textTransform: 'none' }}>
+              Also require a video link (player-hosted, e.g. YouTube/Drive) in addition to screenshots
+            </label>
           </div>
 
           <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
