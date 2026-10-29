@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import MissionsScreen from './MissionsScreen';
-import type { Mission, MissionAttempt, Profile, Wallet } from '../types';
+import type { GameIdLink, Mission, MissionAttempt, Profile, Wallet } from '../types';
 
 const mission: Mission = {
   id: 'm1',
@@ -63,7 +63,22 @@ const baseProps = {
   attempts: [] as MissionAttempt[],
   missionFees: { Easy: 0, Medium: 10, Hard: 20, Expert: 30 },
   activeAttempt: null,
+  gameIdLinks: [] as GameIdLink[],
   handleStartMission: vi.fn(),
+};
+
+const verifiedMlbbLink: GameIdLink = {
+  id: 'g1',
+  user_id: 'u1',
+  game_type: 'Mobile Legends',
+  in_game_id: '12345',
+  status: 'verified',
+  admin_notes: null,
+  submitted_at: '2026-07-10T00:00:00.000Z',
+  screenshot_url: null,
+  verification_method: null,
+  ai_extracted_id: null,
+  ai_extracted_nickname: null,
 };
 
 describe('MissionsScreen', () => {
@@ -128,6 +143,36 @@ describe('MissionsScreen', () => {
     render(<MissionsScreen {...baseProps} handleStartMission={handleStartMission} />);
     await user.click(screen.getByRole('button', { name: /accept mission/i }));
     expect(handleStartMission).toHaveBeenCalledWith(mission);
+  });
+
+  it('locks the mission for a logged-in player without a verified ID for that game, but keeps it clickable', async () => {
+    const handleStartMission = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <MissionsScreen
+        {...baseProps}
+        user={{ id: 'u1' }}
+        profile={profile}
+        filteredMissions={[{ ...mission, game: 'Mobile Legends' }]}
+        gameIdLinks={[{ ...verifiedMlbbLink, game_type: 'PUBG Mobile' }]}
+        handleStartMission={handleStartMission}
+      />
+    );
+    await user.click(screen.getByRole('button', { name: /verify game id to play/i }));
+    expect(handleStartMission).toHaveBeenCalled();
+  });
+
+  it('shows Accept Mission once the player has a verified ID for that game', () => {
+    render(
+      <MissionsScreen
+        {...baseProps}
+        user={{ id: 'u1' }}
+        profile={profile}
+        filteredMissions={[{ ...mission, game: 'Mobile Legends' }]}
+        gameIdLinks={[verifiedMlbbLink]}
+      />
+    );
+    expect(screen.getByRole('button', { name: /accept mission/i })).toBeInTheDocument();
   });
 
   it('renders past submissions for a logged-in user', () => {

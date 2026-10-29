@@ -116,7 +116,7 @@ describe('Navbar', () => {
         handleTabClick={handleTabClick}
       />
     );
-    await user.click(screen.getByText('MISSIONQUEST'));
+    await user.click(screen.getByText('MissionQuest'));
     expect(handleTabClick).toHaveBeenCalledWith('missions');
   });
 });

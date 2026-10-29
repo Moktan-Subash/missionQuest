@@ -317,6 +317,7 @@ DECLARE
     v_attempts_today INTEGER;
     v_same_mission_today INTEGER;
     v_difficulty TEXT;
+    v_game TEXT;
     v_fee NUMERIC(10,2);
     v_is_paid BOOLEAN := false;
     v_new_attempt public.mission_attempts;
@@ -351,12 +352,29 @@ BEGIN
         RAISE EXCEPTION 'You have already attempted this mission the maximum number of times today.';
     END IF;
 
-    SELECT difficulty INTO v_difficulty
+    SELECT difficulty, game INTO v_difficulty, v_game
     FROM public.missions
     WHERE id = p_mission_id AND is_active = true;
 
     IF v_difficulty IS NULL THEN
         RAISE EXCEPTION 'Mission not found or is no longer active.';
+    END IF;
+
+    -- Game ID gate (mirrors missionGameIdBlocker() in src/gameIdUtils.ts and
+    -- GAME_OPTIONS in src/types.ts -- keep in sync). A listed game needs a
+    -- verified ID for that game; a custom game needs any verified ID.
+    IF v_game IN ('Mobile Legends', 'PUBG Mobile', 'Call of Duty Mobile', 'League of Legends', 'Free Fire', 'Clash Royale') THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM public.game_id_links
+            WHERE user_id = v_user_id AND game_type = v_game AND status = 'verified'
+        ) THEN
+            RAISE EXCEPTION 'Link and verify your % game ID in your Profile before playing this mission.', v_game;
+        END IF;
+    ELSIF NOT EXISTS (
+        SELECT 1 FROM public.game_id_links
+        WHERE user_id = v_user_id AND status = 'verified'
+    ) THEN
+        RAISE EXCEPTION 'Link and verify at least one game ID in your Profile before playing missions.';
     END IF;
 
     IF v_attempts_today >= v_daily_limit THEN

@@ -1,5 +1,6 @@
-import type { Mission, MissionAttempt, Profile, Wallet } from '../types';
+import type { GameIdLink, Mission, MissionAttempt, Profile, Wallet } from '../types';
 import { isSameNepalDay } from '../dateUtils';
+import { missionGameIdBlocker } from '../gameIdUtils';
 
 interface MissionsScreenProps {
   user: any;
@@ -14,6 +15,7 @@ interface MissionsScreenProps {
   attempts: MissionAttempt[];
   missionFees: Record<string, number>;
   activeAttempt: MissionAttempt | null;
+  gameIdLinks: GameIdLink[];
   handleStartMission: (mission: Mission) => void;
 }
 
@@ -38,6 +40,7 @@ function MissionsScreen({
   attempts,
   missionFees,
   activeAttempt,
+  gameIdLinks,
   handleStartMission,
 }: MissionsScreenProps) {
   // Dev-only placeholder so the card is visible while building/testing
@@ -155,9 +158,13 @@ function MissionsScreen({
           const needsPayment = !!(user && profile && attemptsToday >= profile.daily_mission_limit);
           const missionFee = missionFees[mission.difficulty || 'Medium'] || 0;
           const isExpanded = expandedMissionId === mission.id;
+          // Guests still see "Accept Mission" (it opens login); the button stays
+          // clickable when locked so handleStartMission can explain why.
+          const needsGameId = !!user && missionGameIdBlocker(mission.game, gameIdLinks) !== null;
 
           let acceptLabel = 'Accept Mission →';
           if (maxedOutMission) acceptLabel = 'Completed Today';
+          else if (needsGameId) acceptLabel = '🔒 Verify Game ID to Play';
           else if (needsPayment) acceptLabel = `Pay Rs. ${missionFee} to Play`;
 
           return (

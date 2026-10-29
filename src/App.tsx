@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import { isSameNepalDay } from './dateUtils';
+import { missionGameIdBlocker } from './gameIdUtils';
 import './App.css';
 import {
   GAME_OPTIONS,
@@ -1360,6 +1361,12 @@ function App() {
 
     if (activeAttempt) {
       showToast('You already have an active mission running!', 'error');
+      return;
+    }
+
+    const gameIdBlocker = missionGameIdBlocker(mission.game, gameIdLinks);
+    if (gameIdBlocker) {
+      showToast(gameIdBlocker, 'error');
       return;
     }
 
@@ -3151,6 +3158,7 @@ function App() {
               attempts={attempts}
               missionFees={missionFees}
               activeAttempt={activeAttempt}
+              gameIdLinks={gameIdLinks}
               handleStartMission={handleStartMission}
             />
           )}
