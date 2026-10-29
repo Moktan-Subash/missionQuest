@@ -2845,22 +2845,16 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
--- 30. NOTIFICATION RETENTION: unread notifications stick around indefinitely;
--- once read, they auto-delete 12 hours later. read_at records when that
--- happened (is_read alone can't tell you how long it's been). The DELETE
--- policy's USING clause IS the retention rule, not just a permission check --
--- so the client can safely fire a blanket delete for its own notifications
--- and RLS narrows it down to exactly the rows that have actually aged out,
--- nothing else. No RPC/cron needed.
+-- 30. NOTIFICATION RETENTION: notifications are never deleted -- they stay
+-- in the DB as a permanent record. The app hides them instead (see
+-- isNotificationVisible() in src/notificationUtils.ts): unread ones show for
+-- 3 days after being sent, read ones for 5 minutes after read_at. read_at
+-- records when a notification was read (is_read alone can't tell you how
+-- long it's been). There is deliberately no DELETE policy, so players can't
+-- delete their own rows.
 ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS read_at TIMESTAMP WITH TIME ZONE;
 
 DROP POLICY IF EXISTS "Users can delete their own expired read notifications" ON public.notifications;
-CREATE POLICY "Users can delete their own expired read notifications" ON public.notifications
-    FOR DELETE USING (
-        auth.uid() = user_id
-        AND read_at IS NOT NULL
-        AND read_at < NOW() - INTERVAL '12 hours'
-    );
 
 
 -- 31. CHALLENGES: peer-to-peer wagered 1v1/team matches, separate from the

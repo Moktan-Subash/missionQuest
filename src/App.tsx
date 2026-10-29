@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import { isSameNepalDay } from './dateUtils';
 import { missionGameIdBlocker } from './gameIdUtils';
+import { isNotificationVisible, UNREAD_VISIBLE_MS } from './notificationUtils';
 import './App.css';
 import {
   GAME_OPTIONS,
@@ -665,17 +666,14 @@ function App() {
       .then(() => fetchUserData(user.id));
   }, [myMatches, user]);
 
-  // Read notifications auto-delete 12 hours after being read; unread ones
-  // stick around indefinitely. No RPC needed -- the DELETE RLS policy's
-  // USING clause already encodes the exact retention rule, so this blanket
-  // delete only ever actually removes rows that have aged out. Fires once
-  // per login, which is enough to keep the list tidy over time.
+  // Notifications are never deleted -- isNotificationVisible() hides them in
+  // the UI (unread: 3 days, read: 5 minutes). This tick re-evaluates that
+  // rule each minute so a read notification disappears without a reload.
+  const [notificationClock, setNotificationClock] = useState(() => Date.now());
   useEffect(() => {
     if (!user) return;
-    supabase.from('notifications').delete().eq('user_id', user.id)
-      .then(() => setNotifications((prev) => prev.filter((n) =>
-        !n.read_at || Date.now() - new Date(n.read_at).getTime() < 12 * 60 * 60 * 1000
-      )));
+    const interval = setInterval(() => setNotificationClock(Date.now()), 60 * 1000);
+    return () => clearInterval(interval);
   }, [user]);
 
   // Same opportunistic-trigger pattern as the missed-check-in forfeit above,
@@ -906,6 +904,7 @@ function App() {
         .from('notifications')
         .select('*')
         .eq('user_id', userId)
+        .gte('created_at', new Date(Date.now() - UNREAD_VISIBLE_MS).toISOString())
         .order('created_at', { ascending: false })
         .limit(100);
       setNotifications((notificationsData as Notification[]) || []);
@@ -2910,7 +2909,8 @@ function App() {
     return false;
   });
 
-  const unreadNotificationCount = notifications.filter((n) => !n.is_read).length;
+  const visibleNotifications = notifications.filter((n) => isNotificationVisible(n, notificationClock));
+  const unreadNotificationCount = visibleNotifications.filter((n) => !n.is_read).length;
 
   // STANDALONE ADMIN PAGE -- entirely separate from the player app below:
   // no Navbar, no player tabs, no footer. Every visitor here is either shown
@@ -2936,7 +2936,7 @@ function App() {
         ) : (
           <>
           <AdminNavbar
-            notifications={notifications}
+            notifications={visibleNotifications}
             handleMarkNotificationRead={handleMarkNotificationRead}
             handleNotificationClick={handleNotificationClick}
             handleLogout={handleLogout}
@@ -3222,7 +3222,7 @@ function App() {
           {/* SCREEN: NOTIFICATIONS */}
           {activeTab === 'notifications' && user && (
             <NotificationsScreen
-              notifications={notifications}
+              notifications={visibleNotifications}
               handleMarkNotificationRead={handleMarkNotificationRead}
               handleMarkAllNotificationsRead={handleMarkAllNotificationsRead}
               handleNotificationClick={handleNotificationClick}
