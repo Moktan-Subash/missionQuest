@@ -30,7 +30,6 @@ const mission: Mission = {
   rules: 'Screenshot of the kill feed.',
   difficulty: 'Hard',
   is_active: true,
-  duration_days: 3,
 };
 
 const baseProps = {

@@ -2018,3 +2018,137 @@
 .confirm-dialog-actions .btn {
   flex: 1;
 }
+
+/* ---------------- HOW TO PLAY (tutorial video, Missions page) ---------------- */
+.how-to-play-card {
+  position: relative;
+  text-align: left;
+  margin-bottom: 28px;
+  padding: 2px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(34, 211, 238, 0.5), rgba(167, 139, 250, 0.5), rgba(244, 114, 182, 0.5));
+  overflow: hidden;
+}
+
+.how-to-play-card::before {
+  content: '';
+  position: absolute;
+  inset: -40%;
+  background: radial-gradient(circle at 20% 20%, rgba(167, 139, 250, 0.35), transparent 55%);
+  pointer-events: none;
+}
+
+.how-to-play-content {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 32px;
+  align-items: center;
+  background: #0B0B10;
+  border-radius: 16px;
+  padding: 28px 32px;
+}
+
+@media (max-width: 800px) {
+  .how-to-play-content {
+    grid-template-columns: 1fr;
+  }
+}
+
+.how-to-play-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 5px 12px;
+  border-radius: 999px;
+  color: #F472B6;
+  background: rgba(244, 114, 182, 0.12);
+  border: 1px solid rgba(244, 114, 182, 0.3);
+  margin-bottom: 14px;
+}
+
+.how-to-play-title {
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.2;
+  margin-bottom: 10px;
+}
+
+.how-to-play-title-accent {
+  background: linear-gradient(90deg, #22D3EE 0%, #A78BFA 55%, #F472B6 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.how-to-play-subtitle {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin-bottom: 20px;
+  max-width: 42ch;
+}
+
+.how-to-play-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.how-to-play-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.how-to-play-steps strong {
+  color: #fff;
+  font-size: 0.9rem;
+  display: block;
+}
+
+.how-to-play-steps p {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+.how-to-play-step-num {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #22D3EE 0%, #A78BFA 60%, #F472B6 100%);
+  box-shadow: 0 0 10px rgba(167, 139, 250, 0.4);
+}
+
+.how-to-play-video-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #000;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+}
+
+.how-to-play-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+}

@@ -29,7 +29,6 @@ export interface Mission {
   rules: string;
   difficulty?: 'Easy' | 'Medium' | 'Hard' | 'Expert';
   is_active: boolean;
-  duration_days?: number;
   // When true, proof submission also accepts a player-hosted video link
   // (YouTube/Drive/etc, never uploaded to or compressed by us) alongside
   // the required screenshots. When false, screenshots only.

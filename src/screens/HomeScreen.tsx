@@ -120,7 +120,6 @@ function HomeScreen({ publicFeedback, filteredMissions, gameFilter, setGameFilte
                   <div className="mission-card-game">{mission.game}</div>
                   <div className="mission-card-info-row">
                     <div className="info-item info-item-reward">🏆 Rs. {mission.reward_amount.toFixed(0)}</div>
-                    <div className="info-item">🕒 {mission.duration_days || 3} days</div>
                   </div>
                 </div>
               </div>

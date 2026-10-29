@@ -285,7 +285,7 @@ function App() {
   const [otpResendCountdown, setOtpResendCountdown] = useState(60);
 
   // Timer states
-  const [timeRemaining, setTimeRemaining] = useState<string>('30:00');
+  const [timeRemaining, setTimeRemaining] = useState<string>('45:00');
   const timerIntervalRef = useRef<any>(null);
 
   // Admin Tab lists
@@ -1377,12 +1377,12 @@ function App() {
       ? `You've used up your ${profile.daily_mission_limit} free missions today.\n\n` +
         `Accept "${mission.title}" anyway by paying a Rs. ${fee} entry fee from your wallet?\n\n` +
         `⚠️ MISSION GUIDELINES:\n` +
-        `- You will have exactly 30 minutes to complete the mission.\n` +
+        `- You will have exactly 45 minutes to complete the mission.\n` +
         `- You must upload screenshot proof before the timer expires.\n` +
         `- You can only play one active mission at a time.`
       : `Are you sure you want to accept "${mission.title}"?\n\n` +
         `⚠️ MISSION GUIDELINES:\n` +
-        `- You will have exactly 30 minutes to complete the mission.\n` +
+        `- You will have exactly 45 minutes to complete the mission.\n` +
         `- You must upload screenshot proof before the timer expires.\n` +
         `- You can only play one active mission at a time.\n\n` +
         `Do you want to start the quest timer now?`;
@@ -3142,6 +3142,7 @@ function App() {
               user={user}
               profile={profile}
               wallet={wallet}
+              platformSettings={platformSettings}
               gameFilter={gameFilter}
               setGameFilter={setGameFilter}
               filteredMissions={filteredMissions}

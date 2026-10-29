@@ -5,6 +5,7 @@ interface MissionsScreenProps {
   user: any;
   profile: Profile | null;
   wallet: Wallet | null;
+  platformSettings: Record<string, string>;
   gameFilter: 'ALL' | 'MLBB' | 'PUBG' | 'OTHERS';
   setGameFilter: (filter: 'ALL' | 'MLBB' | 'PUBG' | 'OTHERS') => void;
   filteredMissions: Mission[];
@@ -16,10 +17,19 @@ interface MissionsScreenProps {
   handleStartMission: (mission: Mission) => void;
 }
 
+// Accepts a full YouTube URL in any common shape (watch/share/embed) and
+// pulls out just the video ID, so whoever sets the platform_settings row
+// can paste whatever link YouTube gave them without knowing the embed format.
+function extractYoutubeId(url: string): string | null {
+  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([a-zA-Z0-9_-]{11})/);
+  return match ? match[1] : null;
+}
+
 function MissionsScreen({
   user,
   profile,
   wallet,
+  platformSettings,
   gameFilter,
   setGameFilter,
   filteredMissions,
@@ -30,8 +40,74 @@ function MissionsScreen({
   activeAttempt,
   handleStartMission,
 }: MissionsScreenProps) {
+  // Dev-only placeholder so the card is visible while building/testing
+  // locally -- import.meta.env.DEV is false in the actual production build,
+  // so real players never see this fallback, only the real configured video.
+  const devFallback = import.meta.env.DEV ? 'https://youtu.be/dQw4w9WgXcQ' : '';
+  const tutorialVideoId = extractYoutubeId(platformSettings.tutorial_video_url || devFallback);
+
   return (
     <div className="screen animate-fade-in">
+      {/* 1b. HOW TO PLAY: short tutorial video, only shown once an admin has
+          set platform_settings.tutorial_video_url -- no placeholder/broken
+          embed shown to players before that's configured. */}
+      {tutorialVideoId && (
+        <div className="how-to-play-card">
+          <div className="how-to-play-content">
+            <div className="how-to-play-copy">
+              <span className="how-to-play-badge">✨ New Player Guide</span>
+              <h2 className="how-to-play-title">
+                How to <span className="how-to-play-title-accent">Play & Get Paid</span>
+              </h2>
+              <p className="how-to-play-subtitle">
+                A 60-second walkthrough of accepting a mission, submitting proof, and cashing out.
+              </p>
+
+              <ol className="how-to-play-steps">
+                <li>
+                  <span className="how-to-play-step-num">1</span>
+                  <div>
+                    <strong>Pick a mission</strong>
+                    <p>Choose one that matches your game and skill level.</p>
+                  </div>
+                </li>
+                <li>
+                  <span className="how-to-play-step-num">2</span>
+                  <div>
+                    <strong>Accept & play</strong>
+                    <p>Your 45-minute timer starts the moment you accept.</p>
+                  </div>
+                </li>
+                <li>
+                  <span className="how-to-play-step-num">3</span>
+                  <div>
+                    <strong>Submit proof</strong>
+                    <p>Upload screenshots (or video, if the mission allows it).</p>
+                  </div>
+                </li>
+                <li>
+                  <span className="how-to-play-step-num">4</span>
+                  <div>
+                    <strong>Get paid</strong>
+                    <p>Once approved, your reward lands straight in your wallet.</p>
+                  </div>
+                </li>
+              </ol>
+            </div>
+
+            <div className="how-to-play-video-wrap">
+              <iframe
+                src={`https://www.youtube.com/embed/${tutorialVideoId}`}
+                title="How to play MissionQuest"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                className="how-to-play-video"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 2. LOGGED-IN VIEW: SHOW A CLEAN WELCOME HEADER */}
       {user && profile && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', padding: '16px 24px', borderRadius: '12px' }}>
@@ -103,9 +179,6 @@ function MissionsScreen({
                 <div className="mission-card-info-row">
                   <div className="info-item info-item-reward">
                     🏆 Rs. {mission.reward_amount.toFixed(0)}
-                  </div>
-                  <div className="info-item">
-                    🕒 {mission.duration_days || 3} days
                   </div>
                   {needsPayment && !maxedOutMission && (
                     <div className="info-item" style={{ color: 'var(--warning)', fontWeight: 700 }}>

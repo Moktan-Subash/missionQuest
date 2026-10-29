@@ -14,7 +14,6 @@ const mission: Mission = {
   rules: 'Screenshot of the kill feed.',
   difficulty: 'Hard',
   is_active: true,
-  duration_days: 3,
 };
 
 const profile: Profile = {
@@ -55,6 +54,7 @@ const baseProps = {
   user: null as unknown,
   profile: null as Profile | null,
   wallet: null as Wallet | null,
+  platformSettings: {} as Record<string, string>,
   gameFilter: 'ALL' as const,
   setGameFilter: vi.fn(),
   filteredMissions: [mission],
@@ -143,5 +143,37 @@ describe('MissionsScreen', () => {
     expect(screen.getByText('Your Submissions')).toBeInTheDocument();
     expect(screen.getByText('approved')).toBeInTheDocument();
     expect(screen.getByText(/\+Rs\. 100/)).toBeInTheDocument();
+  });
+
+  it('hides the How to Play section in production when no tutorial video is configured', () => {
+    // The dev-only placeholder fallback is intentionally active under Vitest
+    // (import.meta.env.DEV is true there too) -- stub it to false to assert
+    // the actual guarantee that matters: real players never see a placeholder.
+    vi.stubEnv('DEV', false);
+    render(<MissionsScreen {...baseProps} />);
+    expect(screen.queryByText('✨ New Player Guide')).not.toBeInTheDocument();
+    vi.unstubAllEnvs();
+  });
+
+  it('shows the dev-only placeholder video when no tutorial video is configured locally', () => {
+    vi.stubEnv('DEV', true);
+    render(<MissionsScreen {...baseProps} />);
+    expect(screen.getByText('✨ New Player Guide')).toBeInTheDocument();
+    vi.unstubAllEnvs();
+  });
+
+  it('embeds the tutorial video once platform_settings.tutorial_video_url is set', () => {
+    render(
+      <MissionsScreen
+        {...baseProps}
+        platformSettings={{ tutorial_video_url: 'https://youtu.be/dQw4w9WgXcQ' }}
+      />
+    );
+    expect(screen.getByText('✨ New Player Guide')).toBeInTheDocument();
+    expect(screen.getByText('Play & Get Paid')).toBeInTheDocument();
+    expect(screen.getByTitle('How to play MissionQuest')).toHaveAttribute(
+      'src',
+      'https://www.youtube.com/embed/dQw4w9WgXcQ'
+    );
   });
 });

@@ -140,7 +140,7 @@ CREATE TABLE public.mission_attempts (
     user_id UUID REFERENCES public.profiles ON DELETE CASCADE DEFAULT auth.uid() NOT NULL,
     mission_id UUID REFERENCES public.missions ON DELETE CASCADE NOT NULL,
     started_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
-    expires_at TIMESTAMP WITH TIME ZONE NOT NULL, -- set to started_at + 30 minutes
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL, -- set to started_at + 45 minutes
     screenshot_url TEXT, -- uploaded image path, nullable until they submit proof
     status TEXT DEFAULT 'active'::text CHECK (status IN ('active', 'pending_review', 'approved', 'rejected', 'expired')) NOT NULL,
     rejection_reason TEXT,
@@ -332,6 +332,13 @@ BEGIN
         RAISE EXCEPTION 'Your account has been banned from participating in missions.';
     END IF;
 
+    IF EXISTS (
+        SELECT 1 FROM public.mission_attempts
+        WHERE user_id = v_user_id AND status = 'active' AND expires_at > NOW()
+    ) THEN
+        RAISE EXCEPTION 'You already have an active mission running!';
+    END IF;
+
     SELECT COUNT(*) INTO v_attempts_today
     FROM public.mission_attempts
     WHERE user_id = v_user_id AND started_at >= v_today_start;
@@ -367,7 +374,7 @@ BEGIN
     END IF;
 
     INSERT INTO public.mission_attempts (user_id, mission_id, expires_at, status, is_paid_entry)
-    VALUES (v_user_id, p_mission_id, NOW() + INTERVAL '30 minutes', 'active', v_is_paid)
+    VALUES (v_user_id, p_mission_id, NOW() + INTERVAL '45 minutes', 'active', v_is_paid)
     RETURNING * INTO v_new_attempt;
 
     RETURN v_new_attempt;
@@ -2497,7 +2504,7 @@ CREATE OR REPLACE FUNCTION public.notify_mission_started()
 RETURNS TRIGGER AS $$
 BEGIN
     INSERT INTO public.notifications (user_id, title, body, category, related_id)
-    SELECT NEW.user_id, 'Mission started', '"' || m.title || '" is underway -- you have 30 minutes to submit proof.', 'mission', NEW.id
+    SELECT NEW.user_id, 'Mission started', '"' || m.title || '" is underway -- you have 45 minutes to submit proof.', 'mission', NEW.id
     FROM public.missions m WHERE m.id = NEW.mission_id;
     RETURN NEW;
 END;
@@ -3609,3 +3616,15 @@ BEGIN
     ORDER BY ma.submitted_at DESC NULLS LAST;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================================================
+-- 23. HOW-TO-PLAY TUTORIAL VIDEO (Missions page)
+-- Empty by default -- the "How to Play" section only renders once this is
+-- set to a real YouTube URL, so nothing broken shows to players before then.
+-- Update it directly, e.g.:
+--   UPDATE public.platform_settings SET value = 'https://youtu.be/VIDEO_ID' WHERE key = 'tutorial_video_url';
+-- ============================================================================
+
+INSERT INTO public.platform_settings (key, value) VALUES
+    ('tutorial_video_url', '')
+ON CONFLICT (key) DO NOTHING;

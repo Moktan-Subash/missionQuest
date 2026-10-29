@@ -15,7 +15,6 @@ const mission: Mission = {
   rules: 'Screenshot of the kill feed.',
   difficulty: 'Hard',
   is_active: true,
-  duration_days: 3,
 };
 
 const videoMission: Mission = { ...mission, id: 'm2', allows_video_link: true };
