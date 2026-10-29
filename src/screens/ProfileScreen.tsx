@@ -47,117 +47,102 @@ function ProfileScreen({
   const linkableGames = GAME_OPTIONS.filter((game) => !verifiedGameTypes.has(game));
 
   return (
-    <div className="screen animate-fade-in">
-      <div className="profile-grid">
-        {/* Left Card: Summary & Stats */}
-        <div className="card profile-card-left">
-          <img
-            src={profile.avatar_url || 'https://www.gravatar.com/avatar?d=mp'}
-            className="profile-avatar-large"
-            alt=""
-          />
-          <h2 className="profile-name-title">{profile.display_name || 'Gamer'}</h2>
-          <div className="profile-tier-badge">{profile.membership_tier} Tier</div>
+    <div className="screen animate-fade-in page">
+      <div className="page-head">
+        <div>
+          <h2 className="page-title font-display">Profile</h2>
+          <p className="page-subtitle">Your account, game IDs and verification</p>
+        </div>
+      </div>
 
-          <div className="profile-stats-grid">
-            <div className="profile-stat-box">
-              <div className="profile-stat-val">⭐ {profile.xp}</div>
-              <div className="profile-stat-lbl">XP Score</div>
+      <div className="pf-grid">
+        {/* Left: Summary & Stats */}
+        <aside className="pf-hero">
+          <div className="pf-avatar">
+            <img src={profile.avatar_url || 'https://www.gravatar.com/avatar?d=mp'} alt="" />
+          </div>
+          <h2 className="pf-name font-display">{profile.display_name || 'Gamer'}</h2>
+          <div className="pf-tier">{profile.membership_tier} Tier</div>
+
+          <div className="pf-stats">
+            <div className="pf-stat">
+              <div className="pf-stat-val font-display">⭐ {profile.xp}</div>
+              <div className="pf-stat-lbl">XP Score</div>
             </div>
-            <div className="profile-stat-box">
-              <div className="profile-stat-val">🏆 {profile.missions_completed}</div>
-              <div className="profile-stat-lbl">Completed</div>
+            <div className="pf-stat">
+              <div className="pf-stat-val font-display">🏆 {profile.missions_completed}</div>
+              <div className="pf-stat-lbl">Completed</div>
             </div>
           </div>
 
-          <button
-            onClick={handleLogout}
-            className="btn btn-secondary"
-            style={{ width: '100%', marginTop: '24px', borderColor: 'var(--danger)', color: 'var(--danger)' }}
-          >
-            Log Out Account
-          </button>
-
           {verifiedLinks.length > 0 && (
-            <div style={{ marginTop: '20px', width: '100%' }}>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '10px' }}>
-                Verified Games
-              </div>
-              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <div className="pf-verified">
+              <div className="section-label">Verified Games</div>
+              <div className="pf-verified-icons">
                 {verifiedLinks.map((link) => (
                   <div
                     key={link.id}
+                    className="pf-verified-icon"
                     title={`${link.game_type}: ${link.in_game_id}${link.ai_extracted_nickname ? ` (${link.ai_extracted_nickname})` : ''}`}
-                    style={{ position: 'relative' }}
                   >
                     {GAME_ICONS[link.game_type] ? (
-                      <img
-                        src={GAME_ICONS[link.game_type]}
-                        alt={link.game_type}
-                        style={{ width: '44px', height: '44px', borderRadius: '12px', objectFit: 'cover', border: '1px solid var(--border-color)' }}
-                      />
+                      <img src={GAME_ICONS[link.game_type]} alt={link.game_type} />
                     ) : (
-                      <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>
-                        🎮
-                      </div>
+                      <div className="pf-game-fallback">🎮</div>
                     )}
-                    <span style={{
-                      position: 'absolute', bottom: '-4px', right: '-4px',
-                      width: '18px', height: '18px', borderRadius: '50%',
-                      background: 'var(--success)', color: '#fff',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: '0.6rem', border: '2px solid var(--bg-card)',
-                    }}>
-                      ✓
-                    </span>
+                    <span className="pf-verified-tick">✓</span>
                   </div>
                 ))}
               </div>
             </div>
           )}
-        </div>
 
-        {/* Right Card: Details & Verifications */}
-        <div className="card profile-card-right">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <h3 className="profile-section-title">Gamer Account Settings</h3>
+          <button onClick={handleLogout} className="btn btn-danger-outline pf-logout">
+            Log Out Account
+          </button>
+        </aside>
 
-            <div className="profile-row">
-              <span className="profile-row-label">User ID</span>
-              <span className="profile-row-value" style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{user.id}</span>
+        {/* Right: Details & Verifications */}
+        <div className="pf-sections">
+          <section className="pf-section">
+            <h3 className="pf-section-title font-display">Gamer Account Settings</h3>
+
+            <div className="pf-row">
+              <span className="pf-row-label">User ID</span>
+              <span className="pf-row-value mono">{user.id}</span>
             </div>
 
-            <div className="profile-row">
-              <span className="profile-row-label">Email Address</span>
-              <span className="profile-row-value">{user.email}</span>
+            <div className="pf-row">
+              <span className="pf-row-label">Email Address</span>
+              <span className="pf-row-value">{user.email}</span>
             </div>
 
-            <div className="profile-row">
-              <span className="profile-row-label">Linked Phone</span>
-              <span className="profile-row-value">
+            <div className="pf-row">
+              <span className="pf-row-label">Linked Phone</span>
+              <span className="pf-row-value">
                 {profile.phone ? (
-                  <span style={{ color: 'var(--success)', fontWeight: 600 }}>✓ {profile.phone}</span>
+                  <span className="text-success">✓ {profile.phone}</span>
                 ) : (
-                  <button onClick={() => setShowPhoneModal(true)} className="btn btn-primary" style={{ padding: '4px 10px', fontSize: '0.75rem' }}>
+                  <button onClick={() => setShowPhoneModal(true)} className="btn btn-primary btn-sm">
                     Link Phone
                   </button>
                 )}
               </span>
             </div>
-          </div>
+          </section>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <h3 className="profile-section-title">KYC Identity Verification</h3>
+          <section className="pf-section">
+            <h3 className="pf-section-title font-display">KYC Identity Verification</h3>
 
-            <div className="kyc-status-container">
-              <div style={{ textAlign: 'left', paddingRight: '12px' }}>
-                <div style={{ fontWeight: 600, textTransform: 'capitalize' }}>
-                  Status: <span style={{
-                    color: profile.kyc_status === 'verified' ? 'var(--success)' :
-                           profile.kyc_status === 'pending' ? 'var(--warning)' : 'var(--danger)'
-                  }}>{profile.kyc_status}</span>
+            <div className="pf-kyc">
+              <div>
+                <div className="pf-kyc-status">
+                  Status: <span className={
+                    profile.kyc_status === 'verified' ? 'text-success' :
+                    profile.kyc_status === 'pending' ? 'text-warning' : 'text-danger'
+                  }>{profile.kyc_status}</span>
                 </div>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginTop: '4px', lineHeight: 1.4 }}>
+                <p className="pf-help">
                   {profile.kyc_status === 'unverified' && 'Upload a copy of your Citizenship card or Driver License to unlock rewards withdrawals.'}
                   {profile.kyc_status === 'pending' && 'Your document is under review by our moderation team. (Usually verified in 24 hours)'}
                   {profile.kyc_status === 'verified' && 'Your account is fully verified for payouts.'}
@@ -165,60 +150,42 @@ function ProfileScreen({
               </div>
 
               {profile.kyc_status === 'unverified' && (
-                <button
-                  onClick={handleSubmitKycDocument}
-                  className="btn btn-primary"
-                  style={{ padding: '8px 16px', fontSize: '0.75rem', flexShrink: 0 }}
-                >
+                <button onClick={handleSubmitKycDocument} className="btn btn-primary btn-sm pf-kyc-btn">
                   Submit ID Document
                 </button>
               )}
             </div>
-          </div>
+          </section>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <h3 className="profile-section-title">Linked Game Accounts</h3>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)', lineHeight: 1.4 }}>
+          <section className="pf-section">
+            <h3 className="pf-section-title font-display">Linked Game Accounts</h3>
+            <p className="pf-help">
               Link your in-game ID and a screenshot of your profile screen — most links are
               auto-verified instantly. If it can't be auto-verified, an admin reviews it manually.
             </p>
 
             {gameIdLinks.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '4px' }}>
+              <div className="pf-links">
                 {gameIdLinks.map((link) => (
-                  <div
-                    key={link.id}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '12px',
-                      padding: '10px 14px', borderRadius: '12px',
-                      background: 'var(--bg-card-hover)', border: '1px solid var(--border-color)',
-                    }}
-                  >
+                  <div key={link.id} className="pf-link">
                     {GAME_ICONS[link.game_type] ? (
-                      <img
-                        src={GAME_ICONS[link.game_type]}
-                        alt={link.game_type}
-                        style={{ width: '40px', height: '40px', borderRadius: '10px', objectFit: 'cover', flexShrink: 0 }}
-                      />
+                      <img src={GAME_ICONS[link.game_type]} alt={link.game_type} className="pf-link-icon" />
                     ) : (
-                      <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', flexShrink: 0 }}>
-                        🎮
-                      </div>
+                      <div className="pf-link-icon pf-game-fallback">🎮</div>
                     )}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ color: '#fff', fontWeight: 600, fontSize: '0.85rem' }}>
+                    <div className="pf-link-text">
+                      <div className="pf-link-game">
                         {link.game_type}
                         {link.ai_extracted_nickname && (
-                          <span style={{ color: 'var(--accent)', fontWeight: 500 }}> · {link.ai_extracted_nickname}</span>
+                          <span className="pf-link-nick"> · {link.ai_extracted_nickname}</span>
                         )}
                       </div>
-                      <div style={{ fontFamily: 'monospace', fontSize: '0.75rem', color: 'var(--text-dim)' }}>{link.in_game_id}</div>
+                      <div className="pf-link-id mono">{link.in_game_id}</div>
                     </div>
                     <span className={`badge badge-${link.status}`}>{link.status}</span>
                     <button
                       onClick={() => handleUnlinkGameId(link.id, link.game_type)}
-                      className="btn btn-secondary"
-                      style={{ padding: '4px 10px', fontSize: '0.7rem', color: 'var(--danger)', flexShrink: 0 }}
+                      className="btn btn-danger-outline btn-sm"
                     >
                       Unlink
                     </button>
@@ -228,15 +195,14 @@ function ProfileScreen({
             )}
 
             {linkableGames.length === 0 ? (
-              <p style={{ fontSize: '0.8rem', color: 'var(--success)' }}>✅ All supported games are linked and verified.</p>
+              <p className="pf-help text-success">✅ All supported games are linked and verified.</p>
             ) : (
               <>
-                <form onSubmit={handleLinkGameId} style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <form onSubmit={handleLinkGameId} className="pf-link-form">
                   <select
                     value={linkableGames.includes(gameIdForm.game_type) ? gameIdForm.game_type : linkableGames[0]}
                     onChange={(e) => setGameIdForm({ ...gameIdForm, game_type: e.target.value })}
-                    className="form-control"
-                    style={{ flex: '1 1 140px' }}
+                    className="form-control pf-link-form-game"
                   >
                     {linkableGames.map((game) => (
                       <option key={game} value={game}>{game}</option>
@@ -247,54 +213,50 @@ function ProfileScreen({
                     value={gameIdForm.in_game_id}
                     onChange={(e) => setGameIdForm({ ...gameIdForm, in_game_id: e.target.value })}
                     placeholder="Your in-game user ID"
-                    className="form-control"
-                    style={{ flex: '2 1 160px' }}
+                    className="form-control pf-link-form-id"
                   />
                   <input
                     type="file"
                     accept="image/*"
                     onChange={(e) => setGameIdScreenshotFile(e.target.files?.[0] || null)}
-                    style={{ flex: '1 1 100%', fontSize: '0.75rem' }}
+                    className="file-input pf-link-form-file"
                   />
                   <button
                     type="submit"
-                    className="btn btn-primary"
+                    className="btn btn-primary btn-sm"
                     disabled={linkingGameId || verifyingGameId}
-                    style={{ padding: '8px 16px', fontSize: '0.75rem' }}
                   >
                     {linkingGameId ? 'Linking...' : verifyingGameId ? 'Verifying...' : 'Link ID'}
                   </button>
                 </form>
                 {gameIdScreenshotFile && (
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Selected: {gameIdScreenshotFile.name}</p>
+                  <p className="pf-help">Selected: {gameIdScreenshotFile.name}</p>
                 )}
-                {gameIdError && <p style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>{gameIdError}</p>}
+                {gameIdError && <p className="pf-help text-danger">{gameIdError}</p>}
               </>
             )}
-          </div>
+          </section>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <h3 className="profile-section-title">Help & Feedback</h3>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <button onClick={openSupportModal} className="btn btn-secondary" style={{ padding: '8px 16px', fontSize: '0.75rem' }}>
+          <section className="pf-section">
+            <h3 className="pf-section-title font-display">Help & Feedback</h3>
+            <div className="pf-actions">
+              <button onClick={openSupportModal} className="btn btn-secondary btn-sm">
                 Contact Support
               </button>
-              <button onClick={openFeedbackModal} className="btn btn-secondary" style={{ padding: '8px 16px', fontSize: '0.75rem' }}>
+              <button onClick={openFeedbackModal} className="btn btn-secondary btn-sm">
                 ⭐ Rate Us
               </button>
             </div>
-          </div>
+          </section>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <h3 className="profile-section-title" style={{ color: 'var(--danger)' }}>Danger Zone</h3>
-            <button
-              onClick={() => setShowDeleteAccountModal(true)}
-              className="btn btn-secondary"
-              style={{ padding: '8px 16px', fontSize: '0.75rem', borderColor: 'var(--danger)', color: 'var(--danger)', alignSelf: 'flex-start' }}
-            >
-              Delete Account
-            </button>
-          </div>
+          <section className="pf-section pf-section-danger">
+            <h3 className="pf-section-title font-display text-danger">Danger Zone</h3>
+            <div className="pf-actions">
+              <button onClick={() => setShowDeleteAccountModal(true)} className="btn btn-danger-outline btn-sm">
+                Delete Account
+              </button>
+            </div>
+          </section>
         </div>
       </div>
     </div>

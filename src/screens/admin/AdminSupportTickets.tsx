@@ -7,9 +7,9 @@ interface AdminSupportTicketsProps {
 }
 
 const STATUS_STYLE: Record<SupportTicket['status'], { label: string; icon: string; color: string; bg: string }> = {
-  open: { label: 'Open', icon: '🟡', color: 'var(--warning)', bg: 'rgba(245, 158, 11, 0.1)' },
-  in_progress: { label: 'In Progress', icon: '🔵', color: 'var(--accent)', bg: 'rgba(59, 130, 246, 0.1)' },
-  resolved: { label: 'Resolved', icon: '✅', color: 'var(--success)', bg: 'rgba(16, 185, 129, 0.1)' },
+  open: { label: 'Open', icon: '🟡', color: 'var(--warning)', bg: 'rgba(255, 176, 32, 0.1)' },
+  in_progress: { label: 'In Progress', icon: '🔵', color: 'var(--accent)', bg: 'rgba(198, 255, 0, 0.1)' },
+  resolved: { label: 'Resolved', icon: '✅', color: 'var(--success)', bg: 'rgba(198, 255, 0, 0.1)' },
 };
 
 function AdminSupportTickets({ allSupportTickets, handleAdminUpdateSupportTicketStatus }: AdminSupportTicketsProps) {

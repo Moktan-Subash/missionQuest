@@ -18,7 +18,7 @@ function DeleteAccountModal({ setShowDeleteAccountModal, deactivatingAccount, ha
           <button className="modal-close" onClick={() => setShowDeleteAccountModal(false)}>×</button>
         </div>
 
-        <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--danger)', color: 'var(--danger)', padding: '0.85rem 1rem', borderRadius: '8px', fontSize: '0.85rem', marginBottom: '1.25rem', lineHeight: 1.5 }}>
+        <div className="form-error">
           This deactivates your account immediately and signs you out. You won't be
           able to log back in or access your wallet balance until an admin
           reactivates it for you. This is not yet a permanent data-deletion —

@@ -208,8 +208,8 @@ function AdminScreen({
   fetchAnalyticsData,
 }: AdminScreenProps) {
   return (
-    <div className="screen animate-fade-in">
-      <h2 style={{ fontSize: '1.5rem', textAlign: 'left', marginBottom: '1.5rem', color: 'var(--warning)' }}>
+    <div className="screen animate-fade-in container admin-console">
+      <h2 className="page-title font-display admin-console-title">
         Admin Operations Console
       </h2>
 

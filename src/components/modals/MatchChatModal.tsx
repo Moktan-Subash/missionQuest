@@ -49,7 +49,7 @@ function MatchChatModal({
                       padding: '0.5rem 0.75rem',
                       borderRadius: '10px',
                       background: isMine ? 'var(--accent)' : 'var(--bg-card-hover)',
-                      color: isMine ? '#fff' : 'inherit',
+                      color: isMine ? 'var(--accent-ink)' : 'inherit',
                       fontSize: '0.85rem',
                       wordBreak: 'break-word',
                     }}

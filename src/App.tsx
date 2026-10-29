@@ -34,6 +34,7 @@ import {
   type PlayerCompletedMission,
 } from './types';
 import Navbar from './components/Navbar';
+import MobileTabBar from './components/MobileTabBar';
 import BackgroundDecoration from './components/BackgroundDecoration';
 import ActiveMissionBanner from './components/ActiveMissionBanner';
 import HomeScreen from './screens/HomeScreen';
@@ -2911,6 +2912,9 @@ function App() {
 
   const visibleNotifications = notifications.filter((n) => isNotificationVisible(n, notificationClock));
   const unreadNotificationCount = visibleNotifications.filter((n) => !n.is_read).length;
+  // Nav highlight only -- activeTab falls back to 'missions' on non-tab pages
+  // like / and /terms, where no nav item should look selected.
+  const navActiveTab: Tab | null = VALID_TABS.includes(pathTab as Tab) ? activeTab : null;
 
   // STANDALONE ADMIN PAGE -- entirely separate from the player app below:
   // no Navbar, no player tabs, no footer. Every visitor here is either shown
@@ -3070,7 +3074,17 @@ function App() {
       <ConfirmDialog confirmState={confirmState} setConfirmState={() => setConfirmState(null)} />
 
       {/* 1. TOP NAVBAR */}
-      <Navbar user={user} profile={profile} wallet={wallet} handleLogout={handleLogout} setShowLoginModal={setShowLoginModal} handleTabClick={handleTabClick} />
+      <Navbar
+        user={user}
+        profile={profile}
+        wallet={wallet}
+        handleLogout={handleLogout}
+        setShowLoginModal={setShowLoginModal}
+        handleTabClick={handleTabClick}
+        activeTab={navActiveTab}
+        unreadNotificationCount={unreadNotificationCount}
+      />
+      <MobileTabBar user={user} profile={profile} activeTab={navActiveTab} handleTabClick={handleTabClick} />
 
       {/* 2. STANDALONE LANDING PAGE (outside the Tab system, same page for
           everyone regardless of login state -- the missions board itself
@@ -3097,35 +3111,8 @@ function App() {
       ) : (
         /* 3. LOGGED IN DASHBOARD */
         <div className="container" style={{ paddingBottom: '3rem' }}>
-          {/* TABS NAVIGATION */}
-          <div className="tabs-header">
-            <button onClick={() => handleTabClick('missions')} className={`tab-btn ${activeTab === 'missions' ? 'active' : ''}`}>
-              🎯 Missions
-            </button>
-            <button onClick={() => handleTabClick('leaderboard')} className={`tab-btn ${activeTab === 'leaderboard' ? 'active' : ''}`}>
-              🏆 Leaderboard
-            </button>
-            <button onClick={() => handleTabClick('tournaments')} className={`tab-btn ${activeTab === 'tournaments' ? 'active' : ''}`}>
-              💰 Tournaments
-            </button>
-            <button onClick={() => handleTabClick('challenges')} className={`tab-btn ${activeTab === 'challenges' ? 'active' : ''}`}>
-              ⚔️ Challenges{user && profile?.membership_tier === 'free' ? ' 🔒' : ''}
-            </button>
-            <button onClick={() => handleTabClick('wallet')} className={`tab-btn ${activeTab === 'wallet' ? 'active' : ''}`}>
-              💼 Wallet
-            </button>
-            <button onClick={() => handleTabClick('membership')} className={`tab-btn ${activeTab === 'membership' ? 'active' : ''}`}>
-              ⭐ Upgrade
-            </button>
-            <button onClick={() => handleTabClick('profile')} className={`tab-btn ${activeTab === 'profile' ? 'active' : ''}`}>
-              👤 Profile
-            </button>
-            {user && (
-              <button onClick={() => handleTabClick('notifications')} className={`tab-btn ${activeTab === 'notifications' ? 'active' : ''}`}>
-                🔔 Notifications{unreadNotificationCount > 0 ? ` (${unreadNotificationCount})` : ''}
-              </button>
-            )}
-          </div>
+          {/* Tab navigation lives in the header (Navbar) and, below 900px,
+              the floating MobileTabBar. */}
 
           {/* ACTIVE MISSION BLOCK */}
           <ActiveMissionBanner
@@ -3255,14 +3242,17 @@ function App() {
           {/* SCREEN: CHALLENGES */}
           {activeTab === 'challenges' && (
             user && profile?.membership_tier === 'free' ? (
-              <div className="card" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
-                <h3 style={{ color: '#fff', marginBottom: '0.75rem' }}>⚔️ Challenges are a Bronze & Gold perk</h3>
-                <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-                  Upgrade your membership to challenge other players 1v1 or as a team for real cash stakes.
-                </p>
-                <button onClick={() => handleTabClick('membership')} className="btn btn-primary" style={{ padding: '0.6rem 1.5rem' }}>
-                  View Membership Plans
-                </button>
+              <div className="page">
+                <div className="locked-card">
+                  <span className="locked-card-icon">⚔️</span>
+                  <h3 className="locked-card-title font-display">Challenges are a Bronze & Gold perk</h3>
+                  <p>
+                    Upgrade your membership to challenge other players 1v1 or as a team for real cash stakes.
+                  </p>
+                  <button onClick={() => handleTabClick('membership')} className="btn btn-primary">
+                    View Membership Plans
+                  </button>
+                </div>
               </div>
             ) : (
               <ChallengesScreen
@@ -3291,20 +3281,24 @@ function App() {
 
       {/* 5. FOOTER */}
       <footer className="main-footer">
-        <div className="container" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
-          <div style={{ display: 'flex', gap: '1.5rem', fontSize: '0.8rem' }}>
-            <Link to="/terms" style={{ color: 'var(--text-muted)' }}>Terms & Conditions</Link>
-            <Link to="/privacy" style={{ color: 'var(--text-muted)' }}>Privacy Policy</Link>
+        <div className="footer-inner">
+          <div className="footer-links">
+            <Link to="/terms">Terms & Conditions</Link>
+            <Link to="/privacy">Privacy Policy</Link>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.8rem' }}>
-            <span style={{ color: 'var(--text-dim)' }}>Follow Us:</span>
-            <a href={SOCIAL_LINKS.instagram} target="_blank" rel="noreferrer" style={{ color: 'var(--text-muted)' }}>Instagram</a>
-            <a href={SOCIAL_LINKS.tiktok} target="_blank" rel="noreferrer" style={{ color: 'var(--text-muted)' }}>TikTok</a>
-            <a href={SOCIAL_LINKS.youtube} target="_blank" rel="noreferrer" style={{ color: 'var(--text-muted)' }}>YouTube</a>
+          <div className="footer-socials">
+            <span>Follow Us:</span>
+            <a href={SOCIAL_LINKS.instagram} target="_blank" rel="noreferrer" className="social-btn" aria-label="Instagram">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.5" cy="6.5" r="1" fill="currentColor" /></svg>
+            </a>
+            <a href={SOCIAL_LINKS.tiktok} target="_blank" rel="noreferrer" className="social-btn" aria-label="TikTok">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.6 5.8A4.3 4.3 0 0 1 15.5 3h-3.1v12.4a2.6 2.6 0 1 1-2.6-2.6c.3 0 .5 0 .8.1V9.7a5.7 5.7 0 1 0 4.9 5.7V9.1a7.3 7.3 0 0 0 4.3 1.4V7.4a4.3 4.3 0 0 1-3.2-1.6z" /></svg>
+            </a>
+            <a href={SOCIAL_LINKS.youtube} target="_blank" rel="noreferrer" className="social-btn" aria-label="YouTube">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M23 7.2a3 3 0 0 0-2.1-2.1C19 4.6 12 4.6 12 4.6s-7 0-8.9.5A3 3 0 0 0 1 7.2 31 31 0 0 0 .5 12a31 31 0 0 0 .5 4.8 3 3 0 0 0 2.1 2.1c1.9.5 8.9.5 8.9.5s7 0 8.9-.5a3 3 0 0 0 2.1-2.1 31 31 0 0 0 .5-4.8 31 31 0 0 0-.5-4.8zM9.8 15.1V8.9l5.8 3.1-5.8 3.1z" /></svg>
+            </a>
           </div>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            © 2026 MISSIONQUEST. ALL RIGHTS RESERVED.
-          </p>
+          <p>© 2026 MISSIONQUEST. ALL RIGHTS RESERVED.</p>
         </div>
       </footer>
 

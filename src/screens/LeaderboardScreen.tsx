@@ -14,18 +14,18 @@ const PERIOD_LABEL: Record<'all' | 'week' | 'month', string> = {
 
 function PodiumCard({ player, rank, user, openPlayerProfile }: { player: any; rank: 1 | 2 | 3; user: any; openPlayerProfile: (playerId: string) => void }) {
   return (
-    <div className={`podium-card podium-rank-${rank}`} style={{ cursor: 'pointer' }} onClick={() => openPlayerProfile(player.id)}>
-      {rank === 1 && <span className="podium-crown">👑</span>}
-      <div className="podium-avatar-ring">
-        <img src={player.avatar_url || 'https://www.gravatar.com/avatar?d=mp'} className="podium-avatar" alt="" />
+    <div className={`lb-podium-card lb-rank-${rank}`} onClick={() => openPlayerProfile(player.id)}>
+      <span className="lb-podium-num font-display" aria-hidden="true">{rank}</span>
+      {rank === 1 && <span className="lb-podium-crown">👑</span>}
+      <div className="lb-podium-avatar">
+        <img src={player.avatar_url || 'https://www.gravatar.com/avatar?d=mp'} alt="" />
       </div>
-      <div className="podium-rank-num">{rank}</div>
-      <div className="podium-name">
-        {player.display_name}
-        {user && player.id === user.id && <span className="badge badge-pubg" style={{ fontSize: '0.55rem', marginLeft: '6px', verticalAlign: 'middle' }}>You</span>}
+      <div className="lb-podium-name">
+        <span>{player.display_name}</span>
+        {user && player.id === user.id && <span className="lb-you">You</span>}
       </div>
-      <div className="podium-xp">{player.xp} XP</div>
-      <div className="podium-quests">{player.missions_completed} quests</div>
+      <div className="lb-podium-xp font-display">{player.xp} XP</div>
+      <div className="lb-podium-quests">{player.missions_completed} quests</div>
     </div>
   );
 }
@@ -37,79 +37,79 @@ function LeaderboardScreen({ leaderboard, user, leaderboardPeriod, setLeaderboar
   const totalQuests = leaderboard.reduce((sum, p) => sum + p.missions_completed, 0);
 
   return (
-    <div className="screen">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-        <h2 style={{ fontSize: '1.5rem', textAlign: 'left', margin: 0 }}>Leaderboard (Top Players)</h2>
-        <div className="game-filters">
-          <button onClick={() => setLeaderboardPeriod('all')} className={`filter-btn ${leaderboardPeriod === 'all' ? 'active' : ''}`}>All-Time</button>
-          <button onClick={() => setLeaderboardPeriod('month')} className={`filter-btn ${leaderboardPeriod === 'month' ? 'active' : ''}`}>Monthly</button>
-          <button onClick={() => setLeaderboardPeriod('week')} className={`filter-btn ${leaderboardPeriod === 'week' ? 'active' : ''}`}>Weekly</button>
+    <div className="screen page">
+      <div className="page-head">
+        <div>
+          <h2 className="page-title font-display">Leaderboard</h2>
+          <p className="page-subtitle">Top players {PERIOD_LABEL[leaderboardPeriod]}</p>
+        </div>
+        <div className="chip-row">
+          <button onClick={() => setLeaderboardPeriod('all')} className={`chip ${leaderboardPeriod === 'all' ? 'active' : ''}`}>All-Time</button>
+          <button onClick={() => setLeaderboardPeriod('month')} className={`chip ${leaderboardPeriod === 'month' ? 'active' : ''}`}>Monthly</button>
+          <button onClick={() => setLeaderboardPeriod('week')} className={`chip ${leaderboardPeriod === 'week' ? 'active' : ''}`}>Weekly</button>
         </div>
       </div>
 
       {leaderboard.length === 0 ? (
-        <div className="card" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+        <div className="page-empty">
           No completed quests {PERIOD_LABEL[leaderboardPeriod]} yet.
         </div>
       ) : (
         <>
-          <div className="stat-tiles-bar">
-            <div className="stat-tile">
-              <div className="stat-tile-val">{leaderboard.length}</div>
-              <div className="stat-tile-lbl">Ranked Players</div>
+          <div className="lb-stats">
+            <div className="lb-stat">
+              <div className="lb-stat-val font-display">{leaderboard.length}</div>
+              <div className="lb-stat-lbl">Ranked Players</div>
             </div>
-            <div className="stat-tile">
-              <div className="stat-tile-val">{totalXp.toLocaleString()}</div>
-              <div className="stat-tile-lbl">Total XP {PERIOD_LABEL[leaderboardPeriod]}</div>
+            <div className="lb-stat">
+              <div className="lb-stat-val font-display">{totalXp.toLocaleString()}</div>
+              <div className="lb-stat-lbl">Total XP {PERIOD_LABEL[leaderboardPeriod]}</div>
             </div>
-            <div className="stat-tile">
-              <div className="stat-tile-val">{totalQuests}</div>
-              <div className="stat-tile-lbl">Quests Completed</div>
+            <div className="lb-stat">
+              <div className="lb-stat-val font-display">{totalQuests}</div>
+              <div className="lb-stat-lbl">Quests Completed</div>
             </div>
           </div>
 
-          <div className="podium">
+          <div className="lb-podium">
             {top3[1] && <PodiumCard player={top3[1]} rank={2} user={user} openPlayerProfile={openPlayerProfile} />}
             {top3[0] && <PodiumCard player={top3[0]} rank={1} user={user} openPlayerProfile={openPlayerProfile} />}
             {top3[2] && <PodiumCard player={top3[2]} rank={3} user={user} openPlayerProfile={openPlayerProfile} />}
           </div>
 
           {rest.length > 0 && (
-            <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
-              <table className="leaderboard-table">
-                <thead>
-                  <tr>
-                    <th style={{ paddingLeft: '1.5rem' }}>Rank</th>
-                    <th>Gamer</th>
-                    <th>Quests Done</th>
-                    <th style={{ paddingRight: '1.5rem' }}>XP Score</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rest.map((player, index) => (
-                    <tr key={player.id} className="leaderboard-row" style={{ cursor: 'pointer' }} onClick={() => openPlayerProfile(player.id)}>
-                      <td style={{ paddingLeft: '1.5rem' }}>
-                        <span className="rank-badge">{index + 4}</span>
-                      </td>
-                      <td>
-                        <div className="player-cell">
-                          <img
-                            src={player.avatar_url || 'https://www.gravatar.com/avatar?d=mp'}
-                            className="player-avatar"
-                            alt=""
-                          />
-                          <span style={{ fontWeight: 600, color: '#fff' }}>{player.display_name}</span>
-                          {user && player.id === user.id && <span className="badge badge-pubg" style={{ fontSize: '0.6rem' }}>You</span>}
+            <div className="lb-list">
+              <div className="lb-list-head" aria-hidden="true">
+                <span>Rank</span>
+                <span>Gamer</span>
+                <span>Quests Done</span>
+                <span>XP Score</span>
+              </div>
+              {rest.map((player, index) => {
+                const isMe = !!user && player.id === user.id;
+                return (
+                  <div
+                    key={player.id}
+                    className={`lb-row ${isMe ? 'is-me' : ''}`}
+                    style={{ '--i': index } as React.CSSProperties}
+                    onClick={() => openPlayerProfile(player.id)}
+                  >
+                    <span className="lb-row-rank font-display">{index + 4}</span>
+                    <div className="lb-row-player">
+                      <img src={player.avatar_url || 'https://www.gravatar.com/avatar?d=mp'} alt="" />
+                      <div className="lb-row-player-text">
+                        <div className="lb-row-name">
+                          <span>{player.display_name}</span>
+                          {isMe && <span className="lb-you">You</span>}
                         </div>
-                      </td>
-                      <td>{player.missions_completed}</td>
-                      <td style={{ paddingRight: '1.5rem', fontWeight: 700, color: 'var(--warning)' }}>
-                        {player.xp} XP
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        <span className="lb-row-quests-mobile">{player.missions_completed} quests</span>
+                      </div>
+                    </div>
+                    <span className="lb-row-quests">{player.missions_completed}</span>
+                    <span className="lb-row-xp font-display">{player.xp} XP</span>
+                  </div>
+                );
+              })}
             </div>
           )}
         </>

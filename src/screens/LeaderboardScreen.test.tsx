@@ -27,7 +27,7 @@ describe('LeaderboardScreen', () => {
 
   it('shows an empty-state message when the leaderboard is empty', () => {
     render(<LeaderboardScreen {...defaultProps} leaderboard={[]} />);
-    expect(screen.getByText('Leaderboard (Top Players)')).toBeInTheDocument();
+    expect(screen.getByText('Leaderboard')).toBeInTheDocument();
     expect(screen.getByText(/No completed quests/)).toBeInTheDocument();
   });
 

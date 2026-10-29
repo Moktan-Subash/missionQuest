@@ -38,22 +38,25 @@ function ActiveMissionBanner({
 
   return (
     <div className="active-mission-banner animate-fade-in">
-      <span className="badge badge-expired" style={{ fontWeight: 800 }}>ACTIVE CHALLENGE</span>
-      <h2 style={{ marginTop: '0.5rem', color: '#fff' }}>{activeAttempt.mission.title} ({activeAttempt.mission.game})</h2>
-      <p style={{ fontSize: '0.95rem', color: 'var(--text-muted)' }}>{activeAttempt.mission.description}</p>
+      <div className="amb-info">
+        <span className="amb-eyebrow"><span className="amb-eyebrow-dot" />Active Challenge</span>
+        <h2 className="amb-title font-display">{activeAttempt.mission.title} ({activeAttempt.mission.game})</h2>
+        <p className="amb-desc">{activeAttempt.mission.description}</p>
 
-      <div className="timer-display">{timeRemaining}</div>
+        <div className="section-label amb-timer-label">Time remaining</div>
+        <div className="timer-display font-display">{timeRemaining}</div>
+      </div>
 
-      <form onSubmit={handleProofSubmit} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', maxWidth: '360px', width: '100%', margin: '0 auto' }}>
-        <div className="form-group" style={{ width: '100%' }}>
-          <label className="form-label" style={{ textAlign: 'left', display: 'block' }}>
+      <form onSubmit={handleProofSubmit} className="amb-form">
+        <div className="form-group">
+          <label className="form-label">
             Screenshots ({proofFiles.length}/{MAX_PROOF_SCREENSHOTS})
           </label>
           <input
             type="file"
             accept="image/*"
             multiple
-            className="form-control"
+            className="form-control file-input"
             disabled={proofFiles.length >= MAX_PROOF_SCREENSHOTS}
             onChange={(e) => {
               const picked = Array.from(e.target.files || []);
@@ -64,14 +67,14 @@ function ActiveMissionBanner({
             }}
           />
           {proofFiles.length > 0 && (
-            <ul style={{ listStyle: 'none', padding: 0, marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <ul className="amb-files">
               {proofFiles.map((file, i) => (
-                <li key={`${file.name}-${i}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</span>
+                <li key={`${file.name}-${i}`}>
+                  <span>{file.name}</span>
                   <button
                     type="button"
                     onClick={() => setProofFiles(proofFiles.filter((_, idx) => idx !== i))}
-                    style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '0 0 0 8px', fontSize: '0.9rem' }}
+                    className="amb-file-remove"
                     aria-label={`Remove ${file.name}`}
                   >
                     ×
@@ -84,8 +87,8 @@ function ActiveMissionBanner({
 
         {requiresVideo && (
           <>
-            <div className="form-group" style={{ width: '100%' }}>
-              <label className="form-label" style={{ textAlign: 'left', display: 'block' }}>
+            <div className="form-group">
+              <label className="form-label">
                 Video link (required for this mission)
               </label>
               <input
@@ -97,8 +100,8 @@ function ActiveMissionBanner({
                 onChange={(e) => setProofVideoUrl(e.target.value)}
               />
             </div>
-            <div className="form-group" style={{ width: '100%' }}>
-              <label className="form-label" style={{ textAlign: 'left', display: 'block' }}>
+            <div className="form-group">
+              <label className="form-label">
                 Proof appears around (optional, e.g. "12:34")
               </label>
               <input
@@ -112,14 +115,13 @@ function ActiveMissionBanner({
           </>
         )}
 
-        <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={submittingProof || !canSubmit}>
+        <button type="submit" className="btn btn-primary" disabled={submittingProof || !canSubmit}>
           {submittingProof ? 'Uploading...' : 'Submit Proof'}
         </button>
         <button
           type="button"
           onClick={() => handleCancelMission(activeAttempt.id)}
-          className="btn btn-secondary"
-          style={{ width: '100%', color: 'var(--danger)' }}
+          className="btn btn-danger-outline"
           disabled={submittingProof}
         >
           Cancel Mission

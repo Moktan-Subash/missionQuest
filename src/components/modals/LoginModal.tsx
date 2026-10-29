@@ -18,7 +18,7 @@ function LoginModal({ setShowLoginModal, authError, handleGoogleLogin }: LoginMo
         </p>
 
         {authError && (
-          <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--danger)', color: 'var(--danger)', padding: '10px', borderRadius: '8px', fontSize: '0.85rem', marginBottom: '16px', textAlign: 'left' }}>
+          <div className="form-error">
             {authError}
           </div>
         )}

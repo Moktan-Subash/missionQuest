@@ -29,7 +29,7 @@ function AdminPayouts({
             <div key={pay.id} style={{ border: '1px solid var(--border-color)', borderRadius: '12px', padding: '1rem', background: 'var(--bg-card-hover)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
               <div>
                 <strong>{pay.profile?.display_name}</strong> requested payout to{' '}
-                <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '3px 8px', borderRadius: '6px', background: 'rgba(63, 131, 248, 0.1)', color: 'var(--accent)' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '3px 8px', borderRadius: '6px', background: 'rgba(198, 255, 0, 0.1)', color: 'var(--accent)' }}>
                   {pay.payment_method.toUpperCase()}
                 </span>
                 <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
@@ -73,9 +73,9 @@ function AdminPayouts({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           {allPayouts.map((pay) => {
             const payoutStatusStyle: Record<string, { label: string; icon: string; color: string; bg: string }> = {
-              pending: { label: 'Pending', icon: '⏳', color: 'var(--warning)', bg: 'rgba(245, 158, 11, 0.1)' },
-              processed: { label: 'Completed', icon: '✅', color: 'var(--success)', bg: 'rgba(16, 185, 129, 0.1)' },
-              rejected: { label: 'Cancelled', icon: '❌', color: 'var(--danger)', bg: 'rgba(239, 68, 68, 0.1)' },
+              pending: { label: 'Pending', icon: '⏳', color: 'var(--warning)', bg: 'rgba(255, 176, 32, 0.1)' },
+              processed: { label: 'Completed', icon: '✅', color: 'var(--success)', bg: 'rgba(198, 255, 0, 0.1)' },
+              rejected: { label: 'Cancelled', icon: '❌', color: 'var(--danger)', bg: 'rgba(255, 77, 77, 0.1)' },
               cancelled: { label: 'Cancelled', icon: '🚫', color: 'var(--text-dim)', bg: 'rgba(113, 113, 122, 0.15)' }
             };
             const s = payoutStatusStyle[pay.status];

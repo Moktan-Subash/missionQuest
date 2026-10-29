@@ -1,26 +1,52 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@112..125,700..900&family=Inter:wght@300;400;500;600;700;800&display=swap');
 
 :root {
-  /* High-End Professional Obsidian UI tokens (Linear/Stripe style) */
-  --bg-main: #09090B;        /* Obsidian void */
-  --bg-card: #18181B;        /* Neutral dark card */
-  --bg-card-hover: #202024;  /* Hover state */
-  --border-color: #27272A;   /* Minimal dark border */
-  --border-hover: #3F3F46;   /* Border highlight */
-  
-  --primary: #FFFFFF;        /* Crisp white primary */
-  --primary-text: #09090B;   /* Text inside white buttons */
-  --accent: #3F83F8;         /* Tech Blue */
-  
-  --success: #10B981;        /* Emerald */
-  --warning: #F59E0B;        /* Amber */
-  --danger: #EF4444;         /* Red */
-  
-  --text-main: #F4F4F5;      /* Slate-100 */
-  --text-muted: #A1A1AA;     /* Slate-400 */
-  --text-dim: #71717A;       /* Slate-500 */
-  
-  --font-main: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  /* ===== MissionQuest v5 design tokens (missions redesign) ===== */
+  --bg: #08090a;
+  --surface: #121315;
+  --surface-2: #1a1b1e;
+  --surface-3: #232428;
+  --line: rgba(255, 255, 255, .07);
+  --line-2: rgba(255, 255, 255, .12);
+  --text: #ffffff;
+  --text-2: #b3b5ba;
+  --muted: #6e7076;
+  --accent: #c6ff00;                     /* the only accent colour */
+  --accent-ink: #0b0d00;                 /* text on accent */
+  --accent-soft: rgba(198, 255, 0, .12);
+  --easy: #c6ff00;
+  --medium: #ffb020;
+  --hard: #ff4d4d;
+
+  --r: 18px;        /* cards */
+  --r-sm: 12px;
+  --r-pill: 999px;  /* buttons and chips */
+  --ease: cubic-bezier(.2, .8, .2, 1);
+
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: 'Archivo', 'Inter', sans-serif;
+
+  /* ===== Legacy tokens -- aliased to the v5 theme so every screen that
+     still uses these names picks up the new look. Prefer the v5 names in
+     new code. ===== */
+  --bg-main: var(--bg);
+  --bg-card: var(--surface);
+  --bg-card-hover: var(--surface-2);
+  --border-color: var(--line-2);
+  --border-hover: rgba(255, 255, 255, .2);
+
+  --primary: #FFFFFF;
+  --primary-text: #000000;
+
+  --success: var(--accent);
+  --warning: var(--medium);
+  --danger: var(--hard);
+
+  --text-main: var(--text);
+  --text-muted: var(--text-2);
+  --text-dim: var(--muted);
+
+  --font-main: var(--font-body);
   
   font-family: var(--font-main);
   color-scheme: dark;
@@ -33,14 +59,30 @@
 }
 
 body {
-  background-color: var(--bg-main);
-  color: var(--text-main);
-  font-family: var(--font-main);
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
   line-height: 1.5;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   letter-spacing: -0.01em;
+}
+
+/* Shared page shell: centred content column used by every screen.
+   position + z-index keep content above the fixed .bg-decoration layer. */
+.container {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+@media (max-width: 600px) {
+  .container { padding: 0 16px; }
 }
 
 /* Custom scrollbars */
@@ -65,6 +107,16 @@ h1, h2, h3, h4 {
   letter-spacing: -0.02em;
 }
 
+/* v5 display headings -- opt-in per component during the redesign, not
+   applied to h1-h4 globally so other pages keep their current look. */
+.font-display {
+  font-family: var(--font-display);
+  font-stretch: 125%;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+}
+
 p {
   color: var(--text-muted);
 }
@@ -73,68 +125,62 @@ p {
 .card {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-color: var(--line);
+  border-radius: var(--r);
   padding: 24px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: border-color .3s var(--ease);
 }
 
 .card:hover {
-  border-color: var(--border-hover);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+  border-color: var(--line-2);
 }
 
 /* Professional Crisp Button */
 .btn {
   font-family: var(--font-main);
-  font-weight: 500;
+  font-weight: 600;
   font-size: 0.875rem;
   padding: 10px 18px;
-  border-radius: 8px;
+  border-radius: var(--r-pill);
   border: 1px solid transparent;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: background .2s var(--ease), border-color .2s var(--ease), color .2s var(--ease), filter .2s var(--ease), transform .15s var(--ease);
 }
+.btn:active:not(:disabled) { transform: scale(.96); }
 
 .btn-primary {
-  background: var(--primary);
-  color: var(--primary-text);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  background: var(--accent);
+  color: var(--accent-ink);
 }
 .btn-primary:hover {
-  background: #E4E4E7;
-  transform: translateY(-1px);
-}
-.btn-primary:active {
-  transform: translateY(0);
+  filter: brightness(1.08);
 }
 
 .btn-secondary {
   background: transparent;
-  border: 1px solid var(--border-color);
-  color: var(--text-main);
+  border: 1px solid var(--line-2);
+  color: var(--text);
 }
 .btn-secondary:hover {
-  background: var(--bg-card);
+  background: var(--surface-2);
   border-color: var(--border-hover);
 }
 
 .btn-accent {
   background: var(--accent);
-  color: #ffffff;
+  color: var(--accent-ink);
   font-weight: 600;
 }
 .btn-accent:hover {
-  background: #2563EB;
-  transform: translateY(-1px);
+  filter: brightness(1.08);
 }
 
 .btn-gold {
-  background: linear-gradient(90deg, #FACC15, #F59E0B);
+  background: linear-gradient(90deg, #FACC15, #FFB020);
   color: #09090b;
   font-weight: 700;
   border: none;
@@ -169,22 +215,77 @@ p {
 }
 
 .form-control {
-  background: #09090B;
-  border: 1px solid var(--border-color);
-  color: #fff;
-  font-family: var(--font-main);
+  background: var(--surface-2);
+  border: 1px solid var(--line-2);
+  color: var(--text);
+  font-family: var(--font-body);
   font-size: 0.9rem;
   padding: 10px 14px;
-  border-radius: 8px;
-  transition: all 0.2s ease;
+  border-radius: var(--r-sm);
+  transition: border-color .2s var(--ease), box-shadow .2s var(--ease);
   width: 100%;
 }
 .form-control:focus {
   outline: none;
-  border-color: #52525B;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.05);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 select.form-control option {
   background: var(--bg-main);
   color: #fff;
 }
+
+/* ===== v5 shared utilities ===== */
+.btn-sm {
+  padding: 7px 14px;
+  font-size: 12px;
+}
+
+.btn-danger-outline {
+  background: transparent;
+  border: 1px solid rgba(255, 77, 77, .4);
+  color: var(--hard);
+}
+.btn-danger-outline:hover {
+  background: rgba(255, 77, 77, .1);
+  border-color: var(--hard);
+}
+
+.section-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.text-success { color: var(--accent); font-weight: 600; }
+.text-warning { color: var(--medium); font-weight: 600; }
+.text-danger { color: var(--hard); }
+.text-muted { color: var(--muted); }
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+
+.file-input {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--text-2);
+}
+.file-input::file-selector-button {
+  margin-right: 10px;
+  padding: 7px 14px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--line-2);
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.file-input::file-selector-button:hover { background: var(--surface-3); }
+
+.clickable { cursor: pointer; }

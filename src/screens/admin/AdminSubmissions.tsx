@@ -65,7 +65,7 @@ function AdminSubmissions({
                     Player: <strong>{sub.profile?.display_name}</strong> | Phone: {sub.profile?.phone || 'N/A'}
                   </p>
                 </div>
-                <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '4px 10px', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '4px 10px', borderRadius: '6px', background: 'rgba(198, 255, 0, 0.1)', color: 'var(--success)' }}>
                   Reward: Rs. {sub.mission?.reward_amount.toFixed(0)}
                 </span>
               </div>
@@ -146,10 +146,10 @@ function AdminSubmissions({
             .filter((a) => attemptFilter === 'all' || a.status === attemptFilter)
             .map((att) => {
               const statusStyle: Record<string, { label: string; icon: string; color: string; bg: string }> = {
-                active: { label: 'In Progress', icon: '⏱️', color: 'var(--warning)', bg: 'rgba(245, 158, 11, 0.1)' },
-                pending_review: { label: 'Pending Review', icon: '👀', color: 'var(--accent)', bg: 'rgba(63, 131, 248, 0.1)' },
-                approved: { label: 'Approved', icon: '✅', color: 'var(--success)', bg: 'rgba(16, 185, 129, 0.1)' },
-                rejected: { label: 'Rejected', icon: '❌', color: 'var(--danger)', bg: 'rgba(239, 68, 68, 0.1)' },
+                active: { label: 'In Progress', icon: '⏱️', color: 'var(--warning)', bg: 'rgba(255, 176, 32, 0.1)' },
+                pending_review: { label: 'Pending Review', icon: '👀', color: 'var(--accent)', bg: 'rgba(198, 255, 0, 0.1)' },
+                approved: { label: 'Approved', icon: '✅', color: 'var(--success)', bg: 'rgba(198, 255, 0, 0.1)' },
+                rejected: { label: 'Rejected', icon: '❌', color: 'var(--danger)', bg: 'rgba(255, 77, 77, 0.1)' },
                 expired: { label: 'Expired', icon: '⌛', color: 'var(--text-dim)', bg: 'rgba(113, 113, 122, 0.15)' },
                 cancelled: { label: 'Cancelled', icon: '🚫', color: 'var(--text-dim)', bg: 'rgba(113, 113, 122, 0.15)' }
               };

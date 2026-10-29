@@ -196,14 +196,14 @@ describe('MissionsScreen', () => {
     // the actual guarantee that matters: real players never see a placeholder.
     vi.stubEnv('DEV', false);
     render(<MissionsScreen {...baseProps} />);
-    expect(screen.queryByText('✨ New Player Guide')).not.toBeInTheDocument();
+    expect(screen.queryByText('New Player Guide')).not.toBeInTheDocument();
     vi.unstubAllEnvs();
   });
 
   it('shows the dev-only placeholder video when no tutorial video is configured locally', () => {
     vi.stubEnv('DEV', true);
     render(<MissionsScreen {...baseProps} />);
-    expect(screen.getByText('✨ New Player Guide')).toBeInTheDocument();
+    expect(screen.getByText('New Player Guide')).toBeInTheDocument();
     vi.unstubAllEnvs();
   });
 
@@ -214,8 +214,8 @@ describe('MissionsScreen', () => {
         platformSettings={{ tutorial_video_url: 'https://youtu.be/dQw4w9WgXcQ' }}
       />
     );
-    expect(screen.getByText('✨ New Player Guide')).toBeInTheDocument();
-    expect(screen.getByText('Play & Get Paid')).toBeInTheDocument();
+    expect(screen.getByText('New Player Guide')).toBeInTheDocument();
+    expect(screen.getByText('Get paid.')).toBeInTheDocument();
     expect(screen.getByTitle('How to play MissionQuest')).toHaveAttribute(
       'src',
       'https://www.youtube.com/embed/dQw4w9WgXcQ'

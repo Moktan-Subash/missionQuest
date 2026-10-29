@@ -47,7 +47,7 @@ function AdminMissionsManager({
                 )}
               </div>
               <div>
-                <span style={{ display: 'inline-block', fontSize: '0.7rem', fontWeight: 600, padding: '3px 8px', borderRadius: '6px', marginBottom: '8px', background: m.is_active ? 'rgba(16, 185, 129, 0.1)' : 'rgba(113, 113, 122, 0.15)', color: m.is_active ? 'var(--success)' : 'var(--text-dim)' }}>
+                <span style={{ display: 'inline-block', fontSize: '0.7rem', fontWeight: 600, padding: '3px 8px', borderRadius: '6px', marginBottom: '8px', background: m.is_active ? 'rgba(198, 255, 0, 0.1)' : 'rgba(113, 113, 122, 0.15)', color: m.is_active ? 'var(--success)' : 'var(--text-dim)' }}>
                   {m.is_active ? 'Active' : 'Inactive'}
                 </span>
                 <div style={{ display: 'flex', gap: '0.4rem' }}>

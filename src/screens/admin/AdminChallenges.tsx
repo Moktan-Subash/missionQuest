@@ -52,7 +52,7 @@ function AdminChallenges({ adminPendingChallenges, handleConfirmChallengeResult 
                 </a>
               )}
 
-              <div style={{ marginTop: '0.6rem', padding: '0.5rem', background: 'rgba(245, 158, 11, 0.06)', border: '1px solid rgba(245, 158, 11, 0.2)', borderRadius: '8px' }}>
+              <div style={{ marginTop: '0.6rem', padding: '0.5rem', background: 'rgba(255, 176, 32, 0.06)', border: '1px solid rgba(255, 176, 32, 0.2)', borderRadius: '8px' }}>
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                   {c.creator_user_id && (
                     <button

@@ -26,7 +26,7 @@ function SupportTicketModal({
         </div>
 
         {supportError && (
-          <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--danger)', color: 'var(--danger)', padding: '0.5rem', borderRadius: '8px', fontSize: '0.85rem', marginBottom: '1rem' }}>
+          <div className="form-error">
             {supportError}
           </div>
         )}

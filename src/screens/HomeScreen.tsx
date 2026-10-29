@@ -17,9 +17,9 @@ const SPY_SECTION_IDS = ['tournaments', 'missions', 'reviews'];
 
 function Stars({ rating }: { rating: number }) {
   return (
-    <span style={{ color: 'var(--warning)', letterSpacing: '1px' }}>
+    <span className="stars">
       {'★'.repeat(rating)}
-      <span style={{ color: 'var(--border-color)' }}>{'★'.repeat(5 - rating)}</span>
+      <span className="stars-off">{'★'.repeat(5 - rating)}</span>
     </span>
   );
 }
@@ -89,17 +89,17 @@ function HomeScreen({ publicFeedback, filteredMissions, gameFilter, setGameFilte
           <p className="home-section-subtitle">Real cash rewards across every game we support.</p>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'center', margin: '20px 0 32px' }}>
-          <div className="game-filters">
-            <button onClick={() => setGameFilter('ALL')} className={`filter-btn ${gameFilter === 'ALL' ? 'active' : ''}`}>ALL</button>
-            <button onClick={() => setGameFilter('MLBB')} className={`filter-btn ${gameFilter === 'MLBB' ? 'active' : ''}`}>MLBB</button>
-            <button onClick={() => setGameFilter('PUBG')} className={`filter-btn ${gameFilter === 'PUBG' ? 'active' : ''}`}>PUBG</button>
-            <button onClick={() => setGameFilter('OTHERS')} className={`filter-btn ${gameFilter === 'OTHERS' ? 'active' : ''}`}>OTHERS</button>
+        <div className="home-filters">
+          <div className="chip-row">
+            <button onClick={() => setGameFilter('ALL')} className={`chip ${gameFilter === 'ALL' ? 'active' : ''}`}>ALL</button>
+            <button onClick={() => setGameFilter('MLBB')} className={`chip ${gameFilter === 'MLBB' ? 'active' : ''}`}>MLBB</button>
+            <button onClick={() => setGameFilter('PUBG')} className={`chip ${gameFilter === 'PUBG' ? 'active' : ''}`}>PUBG</button>
+            <button onClick={() => setGameFilter('OTHERS')} className={`chip ${gameFilter === 'OTHERS' ? 'active' : ''}`}>OTHERS</button>
           </div>
         </div>
 
         {previewMissions.length === 0 ? (
-          <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem 0' }}>
+          <p className="home-empty">
             No missions available right now. Check back soon!
           </p>
         ) : (
@@ -111,7 +111,7 @@ function HomeScreen({ publicFeedback, filteredMissions, gameFilter, setGameFilte
                 className={`mission-card mission-card-preview ${mission.game.toLowerCase().includes('pubg') ? 'card-pubg' : 'card-mlbb'}`}
               >
                 <div className="mission-card-body">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                  <div className="home-preview-head">
                     <h3 className="mission-card-title">{mission.title}</h3>
                     <span className={`difficulty-chip difficulty-${(mission.difficulty || 'Medium').toLowerCase()}`}>
                       {mission.difficulty || 'Medium'}
@@ -127,8 +127,8 @@ function HomeScreen({ publicFeedback, filteredMissions, gameFilter, setGameFilte
           </div>
         )}
 
-        <div style={{ textAlign: 'center', marginTop: '28px' }}>
-          <button className="btn btn-primary" onClick={goToMissions} style={{ padding: '0.7rem 2rem' }}>
+        <div className="home-cta">
+          <button className="btn btn-primary" onClick={goToMissions}>
             View All Missions →
           </button>
         </div>

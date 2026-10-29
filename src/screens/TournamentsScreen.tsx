@@ -93,14 +93,18 @@ function TournamentsScreen({
   }, [deepLinkTournamentId, tournaments]);
 
   return (
-    <div className="screen animate-fade-in">
-      <h2 style={{ fontSize: '1.5rem', textAlign: 'left', marginBottom: '0.5rem' }}>Tournaments</h2>
-      <p style={{ textAlign: 'left', marginBottom: '2rem', color: 'var(--text-muted)' }}>
-        Compete for real cash prizes. Register now before spots fill up.
-      </p>
+    <div className="screen animate-fade-in page">
+      <div className="page-head">
+        <div>
+          <h2 className="page-title font-display">Tournaments</h2>
+          <p className="page-subtitle">
+            Compete for real cash prizes. Register now before spots fill up.
+          </p>
+        </div>
+      </div>
 
       {activeTournaments.length === 0 ? (
-        <div className="card" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+        <div className="page-empty">
           No tournaments scheduled right now. Check back soon!
         </div>
       ) : (
@@ -118,14 +122,13 @@ function TournamentsScreen({
             return (
               <div key={t.id} className={`mission-card tournament-card-${t.game_type.toLowerCase()}`}>
                 <div
-                  className="mission-card-image-wrap"
-                  style={{ cursor: 'pointer' }}
+                  className="mission-card-image-wrap clickable"
                   onClick={() => setExpandedTournamentId(expandedTournamentId === t.id ? null : t.id)}
                 >
                   {t.banner_url ? (
                     <img src={t.banner_url} alt="" className="mission-card-img" />
                   ) : (
-                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem' }}>
+                    <div className="card-art-fallback">
                       {GAME_ICON[t.game_type]}
                     </div>
                   )}
@@ -134,7 +137,7 @@ function TournamentsScreen({
                 </div>
                 <div className="mission-card-body">
                   <div
-                    style={{ cursor: 'pointer' }}
+                    className="clickable"
                     onClick={() => setExpandedTournamentId(expandedTournamentId === t.id ? null : t.id)}
                   >
                     <h3 className="mission-card-title">{t.title}</h3>
@@ -145,41 +148,41 @@ function TournamentsScreen({
                     </div>
 
                     {(t.registration_deadline || t.start_date) && (
-                      <div className="mission-card-info-row" style={{ marginTop: '-10px' }}>
+                      <div className="mission-card-info-row">
                         {t.registration_deadline && (
-                          <div className="info-item" style={{ fontSize: '0.75rem' }}>
+                          <div className="info-item info-item-sm">
                             🕒 Reg. closes {new Date(t.registration_deadline).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                           </div>
                         )}
                         {t.start_date && (
-                          <div className="info-item" style={{ fontSize: '0.75rem' }}>
+                          <div className="info-item info-item-sm">
                             🚀 Starts {new Date(t.start_date).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                           </div>
                         )}
                       </div>
                     )}
 
-                    <div style={{ marginBottom: '12px' }}>
+                    <div className="tournament-progress">
                       <div className="tournament-progress-track">
                         <div
                           className={`tournament-progress-fill ${minReached ? 'min-reached' : ''}`}
                           style={{ width: `${pct}%` }}
                         />
                       </div>
-                      {minReached && <div style={{ color: 'var(--success)', fontWeight: 700, fontSize: '0.75rem', marginTop: '4px' }}>✅ Minimum reached!</div>}
+                      {minReached && <div className="tournament-min-reached">✅ Minimum reached!</div>}
                     </div>
 
                     {expandedTournamentId === t.id && (t.description || t.rules) && (
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '10px', background: '#090B15', padding: '12px', borderRadius: '8px', border: '1px solid #1A1F38' }}>
-                        {t.description && <p style={{ marginBottom: '8px', color: '#fff' }}>{t.description}</p>}
-                        {t.rules && <p style={{ color: '#94A3B8' }}><strong>Rules:</strong> {t.rules}</p>}
+                      <div className="card-details">
+                        {t.description && <p className="card-details-desc">{t.description}</p>}
+                        {t.rules && <p><strong>Rules:</strong> {t.rules}</p>}
                       </div>
                     )}
                   </div>
 
                   <button
                     type="button"
-                    style={{ background: 'none', border: 'none', color: '#2563EB', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', textAlign: 'left', marginBottom: '10px', padding: '0', display: 'block' }}
+                    className="link-btn"
                     onClick={() => openDetails(t)}
                   >
                     View bracket & details →
@@ -190,8 +193,7 @@ function TournamentsScreen({
                       href={t.livestream_url}
                       target="_blank"
                       rel="noreferrer"
-                      className="btn btn-primary"
-                      style={{ background: 'var(--danger)', textAlign: 'center', marginBottom: '10px' }}
+                      className="btn btn-live"
                     >
                       🔴 Watch Live
                     </a>
@@ -202,14 +204,13 @@ function TournamentsScreen({
                       ✅ You're registered{myReg.team_name ? ` as "${myReg.team_name}"` : ''}.
                       {t.registration_unit === 'team' && (
                         <>
-                          <div style={{ marginTop: '6px', color: 'var(--text-muted)' }}>
+                          <div className="recap-sub">
                             Roster ({myRoster.length}/{t.team_size}): {myRoster.map((m) => m.profile?.display_name).join(', ')}
                           </div>
                           {myRoster.length < t.team_size && t.status === 'registration_open' && (
                             <button
                               onClick={() => openTeamRosterModal(myReg)}
-                              className="btn btn-secondary"
-                              style={{ marginTop: '8px', padding: '4px 12px', fontSize: '0.75rem' }}
+                              className="btn btn-secondary btn-sm"
                             >
                               Manage Roster
                             </button>
@@ -222,12 +223,11 @@ function TournamentsScreen({
                       {t.status === 'registration_open' ? 'Register Now' : 'Registration Closed'}
                     </button>
                   ) : !isVerified ? (
-                    <div className="tournament-registered-recap" style={{ background: 'rgba(245, 158, 11, 0.06)', borderColor: 'rgba(245, 158, 11, 0.2)' }}>
+                    <div className="tournament-registered-recap is-warning">
                       Link &amp; verify your <strong>{mappedGameIdType}</strong> ID to register.
                       <button
                         onClick={() => handleTabClick('profile')}
-                        className="btn btn-secondary"
-                        style={{ marginTop: '8px', padding: '4px 12px', fontSize: '0.75rem', display: 'block' }}
+                        className="btn btn-secondary btn-sm"
                       >
                         Go to Profile
                       </button>
@@ -243,8 +243,8 @@ function TournamentsScreen({
                   )}
 
                   {myReg && myTournamentMatches.length > 0 && (
-                    <div className="tournament-registered-recap" style={{ marginTop: '10px' }}>
-                      <strong style={{ display: 'block', marginBottom: '6px' }}>
+                    <div className="tournament-registered-recap">
+                      <strong className="recap-title">
                         Your Match{myTournamentMatches.length > 1 ? 'es' : ''}
                       </strong>
                       {myTournamentMatches.map((m) => {
@@ -261,23 +261,23 @@ function TournamentsScreen({
                           : null;
 
                         return (
-                          <div key={m.id} style={{ marginBottom: '10px', color: 'var(--text-muted)' }}>
+                          <div key={m.id} className="match-item">
                             <div>
-                              <span className={`badge badge-${m.status}`} style={{ marginRight: '6px' }}>{m.status.replace('_', ' ')}</span>
+                              <span className={`badge badge-${m.status}`}>{m.status.replace('_', ' ')}</span>
                               {m.label}{m.best_of > 1 ? ` (Bo${m.best_of})` : ''}
                               {m.match_type === 'bracket' ? (
                                 others.length > 0 ? (
-                                  <> vs <strong style={{ color: '#fff' }}>{otherNames}</strong></>
+                                  <> vs <strong>{otherNames}</strong></>
                                 ) : (
                                   <> — Bye, you advance automatically</>
                                 )
                               ) : (
-                                others.length > 0 && <> with <strong style={{ color: '#fff' }}>{otherNames}</strong></>
+                                others.length > 0 && <> with <strong>{otherNames}</strong></>
                               )}
                             </div>
 
                             {m.status !== 'completed' && others.length > 0 && (
-                              <div style={{ marginTop: '4px', fontSize: '0.85rem' }}>
+                              <div className="match-line">
                                 {m.scheduled_time ? (
                                   <>Starts in: <CountdownTimer target={m.scheduled_time} /></>
                                 ) : (
@@ -287,13 +287,13 @@ function TournamentsScreen({
                             )}
 
                             {m.status !== 'completed' && others.length > 0 && checkinOpensAt && !withinCheckinWindow && !myParticipant?.checked_in_at && (
-                              <div style={{ marginTop: '4px', fontSize: '0.85rem', color: 'var(--text-dim)' }}>
+                              <div className="match-line text-muted">
                                 Check-in opens in: <CountdownTimer target={checkinOpensAt} />
                               </div>
                             )}
 
                             {m.status !== 'completed' && others.length > 0 && myParticipant && (
-                              <div style={{ marginTop: '4px', fontSize: '0.85rem' }}>
+                              <div className="match-line">
                                 You: {myParticipant.checked_in_at ? '✅ Checked in' : '⏳ Not checked in'}
                                 {' · '}
                                 {others.map((p) => p.registration?.team_name || p.registration?.profile?.display_name || 'Opponent').join(', ')}: {' '}
@@ -304,8 +304,7 @@ function TournamentsScreen({
                             {m.status !== 'completed' && others.length > 0 && isCaptain && !myParticipant?.checked_in_at && withinCheckinWindow && (
                               <button
                                 onClick={() => handleCheckInForMatch(m.id)}
-                                className="btn btn-primary"
-                                style={{ marginTop: '6px', padding: '4px 12px', fontSize: '0.75rem' }}
+                                className="btn btn-primary btn-sm match-btn"
                               >
                                 Check In
                               </button>
@@ -314,8 +313,7 @@ function TournamentsScreen({
                             {m.status !== 'completed' && others.length > 0 && isCaptain && myParticipant?.checked_in_at && (
                               <button
                                 onClick={() => openMatchChat(m)}
-                                className="btn btn-secondary"
-                                style={{ marginTop: '6px', padding: '4px 12px', fontSize: '0.75rem' }}
+                                className="btn btn-secondary btn-sm match-btn"
                               >
                                 💬 Open Chat
                               </button>
@@ -324,27 +322,26 @@ function TournamentsScreen({
                             {isCaptain && myParticipant?.checked_in_at && m.status !== 'completed' && m.status !== 'awaiting_review' && (
                               <button
                                 onClick={() => openSubmitResultModal(m)}
-                                className="btn btn-primary"
-                                style={{ marginTop: '6px', marginLeft: '6px', padding: '4px 12px', fontSize: '0.75rem' }}
+                                className="btn btn-primary btn-sm match-btn"
                               >
                                 Submit Result
                               </button>
                             )}
 
                             {m.status === 'awaiting_review' && (
-                              <div style={{ marginTop: '4px', fontSize: '0.85rem', color: 'var(--warning)' }}>
+                              <div className="match-line text-warning">
                                 ⏳ Result submitted, awaiting admin review.
                               </div>
                             )}
 
                             {m.status === 'completed' && m.match_type === 'bracket' && others.length > 0 && (
-                              <div style={{ marginTop: '4px', fontWeight: 700, color: m.winner_registration_id === myReg.id ? 'var(--success)' : 'var(--danger)' }}>
+                              <div className={`match-line ${m.winner_registration_id === myReg.id ? 'text-success' : 'text-danger'}`}>
                                 {m.winner_registration_id === myReg.id ? '🏆 You won!' : 'You lost this match.'}
                               </div>
                             )}
 
                             {m.status === 'completed' && m.match_type === 'lobby' && myParticipant && (myParticipant.result_placement != null || myParticipant.result_points != null) && (
-                              <div style={{ marginTop: '4px' }}>
+                              <div className="match-line">
                                 Result: {myParticipant.result_placement != null ? `#${myParticipant.result_placement} placement` : ''}
                                 {myParticipant.result_placement != null && myParticipant.result_points != null ? ', ' : ''}
                                 {myParticipant.result_points != null ? `${myParticipant.result_points} points` : ''}
@@ -363,8 +360,8 @@ function TournamentsScreen({
       )}
 
       {historyTournaments.length > 0 && (
-        <div style={{ margin: '32px 0' }}>
-          <h3 style={{ fontSize: '1.1rem', marginBottom: '12px', textAlign: 'left' }}>Tournament History</h3>
+        <div className="page-section">
+          <h3 className="page-section-title">Tournament History</h3>
           <div className="missions-grid">
             {historyTournaments.map((t) => {
             const myReg = myRegistrations.find((r) => r.tournament_id === t.id);
@@ -374,28 +371,19 @@ function TournamentsScreen({
             return (
               <div
                 key={t.id}
-                className="mission-card"
+                className="mission-card clickable"
                 onClick={() => openDetails(t)}
-                style={{ cursor: 'pointer' }}
               >
                 <div className="mission-card-image-wrap">
                   {t.banner_url ? (
                     <img src={t.banner_url} alt="" className="mission-card-img" />
                   ) : (
-                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem' }}>
+                    <div className="card-art-fallback">
                       {GAME_ICON[t.game_type]}
                     </div>
                   )}
                   <span className="floating-badge floating-badge-featured">{GAME_ICON[t.game_type]} {t.game_type}</span>
-                  <span
-                    className="floating-badge floating-badge-difficulty"
-                    style={{
-                      background: won ? 'rgba(16, 185, 129, 0.85)' : 'rgba(9, 9, 11, 0.75)',
-                      color: '#fff',
-                      backdropFilter: 'blur(4px)',
-                      border: won ? 'none' : '1px solid rgba(255,255,255,0.1)',
-                    }}
-                  >
+                  <span className={`floating-badge floating-badge-difficulty ${won ? 'floating-badge-won' : 'floating-badge-past'}`}>
                     {won ? '🏆 Winner' : t.status === 'cancelled' ? 'Cancelled' : 'Completed'}
                   </span>
                 </div>
@@ -424,21 +412,17 @@ function TournamentsScreen({
 
       {detailsTournament && (
         <div className="modal-overlay" onClick={() => setDetailsTournament(null)}>
-          <div className="modal-content" style={{ maxWidth: '480px', maxHeight: '85vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content modal-wide" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>{detailsTournament.title}</h3>
               <button className="modal-close" onClick={() => setDetailsTournament(null)}>×</button>
             </div>
 
             {detailsTournament.banner_url && (
-              <img
-                src={detailsTournament.banner_url}
-                alt=""
-                style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover', borderRadius: '10px', marginBottom: '1rem' }}
-              />
+              <img src={detailsTournament.banner_url} alt="" className="modal-banner" />
             )}
 
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '1rem' }}>
+            <div className="modal-tags">
               <span className={`badge badge-${detailsTournament.status}`}>{STATUS_LABEL[detailsTournament.status]}</span>
               <span className="badge">{GAME_ICON[detailsTournament.game_type]} {detailsTournament.game_type}</span>
             </div>
@@ -452,33 +436,33 @@ function TournamentsScreen({
               return (
                 <>
                   {detailsTournament.description && (
-                    <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>{detailsTournament.description}</p>
+                    <p className="modal-text">{detailsTournament.description}</p>
                   )}
                   {detailsTournament.rules && (
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
-                      <strong style={{ color: '#fff' }}>Rules:</strong> {detailsTournament.rules}
+                    <p className="modal-text">
+                      <strong>Rules:</strong> {detailsTournament.rules}
                     </p>
                   )}
 
-                  <div className="tournament-registered-recap" style={{ marginBottom: '0.75rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                      <span style={{ color: 'var(--text-muted)' }}>Prize Pool</span>
-                      <strong style={{ color: 'var(--warning)' }}>Rs. {detailsTournament.prize_pool.toLocaleString()}</strong>
+                  <div className="tournament-registered-recap kv-list">
+                    <div className="kv-row">
+                      <span>Prize Pool</span>
+                      <strong className="text-warning">Rs. {detailsTournament.prize_pool.toLocaleString()}</strong>
                     </div>
                     {detailsTournament.xp_reward > 0 && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                        <span style={{ color: 'var(--text-muted)' }}>XP Reward</span>
-                        <strong style={{ color: '#fff' }}>⭐ {detailsTournament.xp_reward} XP</strong>
+                      <div className="kv-row">
+                        <span>XP Reward</span>
+                        <strong>⭐ {detailsTournament.xp_reward} XP</strong>
                       </div>
                     )}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                      <span style={{ color: 'var(--text-muted)' }}>Winner</span>
-                      <strong style={{ color: '#fff' }}>{winnerName || 'Not announced'}</strong>
+                    <div className="kv-row">
+                      <span>Winner</span>
+                      <strong>{winnerName || 'Not announced'}</strong>
                     </div>
                     {detailsTournament.completed_at && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: 'var(--text-muted)' }}>Completed</span>
-                        <strong style={{ color: '#fff' }}>
+                      <div className="kv-row">
+                        <span>Completed</span>
+                        <strong>
                           {new Date(detailsTournament.completed_at).toLocaleString()}
                         </strong>
                       </div>
@@ -502,28 +486,28 @@ function TournamentsScreen({
             })()}
 
             {bracketMatches.length > 0 && (
-              <div style={{ marginTop: '1rem' }}>
-                <h4 style={{ color: '#fff', marginBottom: '0.5rem' }}>Bracket</h4>
+              <div>
+                <h4 className="modal-section-title">Bracket</h4>
                 {Object.entries(
                   bracketMatches.reduce<Record<number, TournamentMatch[]>>((acc, m) => {
                     (acc[m.round] = acc[m.round] || []).push(m);
                     return acc;
                   }, {})
                 ).map(([round, matches]) => (
-                  <div key={round} style={{ marginBottom: '0.75rem' }}>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>
+                  <div key={round} className="bracket-round">
+                    <div className="section-label">
                       Round {round}
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    <div className="bracket-matches">
                       {matches.map((m) => {
                         const names = (m.participants || []).map((p) => p.registration?.team_name || p.registration?.profile?.display_name || 'Unknown');
                         const isBye = (m.participants || []).length === 1;
                         return (
-                          <div key={m.id} style={{ padding: '0.5rem 0.65rem', background: 'var(--bg-card-hover)', borderRadius: '8px', fontSize: '0.8rem' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.4rem' }}>
-                              <span style={{ color: 'var(--text-muted)' }}>
+                          <div key={m.id} className="bracket-match">
+                            <div className="bracket-match-head">
+                              <span>
                                 {isBye ? (
-                                  <>{names[0]} <span style={{ color: 'var(--text-dim)' }}>(bye)</span></>
+                                  <>{names[0]} <span className="text-muted">(bye)</span></>
                                 ) : (
                                   names.join(' vs ')
                                 )}
@@ -531,7 +515,7 @@ function TournamentsScreen({
                               <span className={`badge badge-${m.status}`}>{m.status.replace('_', ' ')}</span>
                             </div>
                             {m.winner_registration_id && !isBye && (
-                              <div style={{ color: 'var(--success)', marginTop: '2px' }}>
+                              <div className="bracket-match-winner">
                                 🏆 {(m.participants || []).find((p) => p.registration_id === m.winner_registration_id)?.registration?.team_name
                                   || (m.participants || []).find((p) => p.registration_id === m.winner_registration_id)?.registration?.profile?.display_name}
                               </div>
@@ -547,8 +531,7 @@ function TournamentsScreen({
 
             <button
               type="button"
-              className="btn btn-secondary"
-              style={{ width: '100%', marginTop: '1rem' }}
+              className="btn btn-secondary btn-block"
               onClick={() => setDetailsTournament(null)}
             >
               Close

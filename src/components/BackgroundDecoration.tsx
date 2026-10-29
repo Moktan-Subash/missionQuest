@@ -70,24 +70,24 @@ const DiceIcon = () => (
 );
 
 const ICONS = [
-  { Icon: GamepadIcon, className: 'bg-deco-1', color: '#22D3EE', size: 110, rotate: -10, duration: 8, delay: 0 },
-  { Icon: KeyboardIcon, className: 'bg-deco-2', color: '#F472B6', size: 130, rotate: 6, duration: 9.5, delay: 0.6 },
-  { Icon: TrophyIcon, className: 'bg-deco-3', color: '#FACC15', size: 100, rotate: 12, duration: 7.5, delay: 1.2 },
-  { Icon: JoystickIcon, className: 'bg-deco-4', color: '#38BDF8', size: 90, rotate: -8, duration: 8.5, delay: 0.3 },
-  { Icon: HeadsetIcon, className: 'bg-deco-5', color: '#A78BFA', size: 110, rotate: 14, duration: 10, delay: 1.6 },
-  { Icon: DiceIcon, className: 'bg-deco-6', color: '#4ADE80', size: 84, rotate: -16, duration: 7, delay: 0.9 },
-  { Icon: CrosshairIcon, className: 'bg-deco-7', color: '#FB7185', size: 90, rotate: 4, duration: 9, delay: 1.9 },
-  { Icon: GamepadIcon, className: 'bg-deco-8', color: '#FB923C', size: 96, rotate: 18, duration: 8.2, delay: 2.3 },
+  { Icon: GamepadIcon, className: 'bg-deco-1', color: '#C6FF00', size: 110, rotate: -10, duration: 8, delay: 0 },
+  { Icon: KeyboardIcon, className: 'bg-deco-2', color: '#6E7076', size: 130, rotate: 6, duration: 9.5, delay: 0.6 },
+  { Icon: TrophyIcon, className: 'bg-deco-3', color: '#6E7076', size: 100, rotate: 12, duration: 7.5, delay: 1.2 },
+  { Icon: JoystickIcon, className: 'bg-deco-4', color: '#C6FF00', size: 90, rotate: -8, duration: 8.5, delay: 0.3 },
+  { Icon: HeadsetIcon, className: 'bg-deco-5', color: '#6E7076', size: 110, rotate: 14, duration: 10, delay: 1.6 },
+  { Icon: DiceIcon, className: 'bg-deco-6', color: '#6E7076', size: 84, rotate: -16, duration: 7, delay: 0.9 },
+  { Icon: CrosshairIcon, className: 'bg-deco-7', color: '#C6FF00', size: 90, rotate: 4, duration: 9, delay: 1.9 },
+  { Icon: GamepadIcon, className: 'bg-deco-8', color: '#6E7076', size: 96, rotate: 18, duration: 8.2, delay: 2.3 },
 ];
 
 const SHAPES = [
-  { type: 'circle', className: 'bg-shape-1', color: '#22D3EE', size: 26, duration: 3.2, delay: 0 },
-  { type: 'square', className: 'bg-shape-2', color: '#F472B6', size: 22, duration: 2.6, delay: 0.5 },
-  { type: 'circle', className: 'bg-shape-3', color: '#FACC15', size: 18, duration: 3.8, delay: 1 },
-  { type: 'square', className: 'bg-shape-4', color: '#4ADE80', size: 24, duration: 2.9, delay: 1.4 },
-  { type: 'circle', className: 'bg-shape-5', color: '#A78BFA', size: 20, duration: 3.4, delay: 0.8 },
-  { type: 'square', className: 'bg-shape-6', color: '#FB7185', size: 16, duration: 2.4, delay: 1.8 },
-  { type: 'circle', className: 'bg-shape-7', color: '#38BDF8', size: 22, duration: 3.6, delay: 0.3 },
+  { type: 'circle', className: 'bg-shape-1', color: '#6E7076', size: 26, duration: 3.2, delay: 0 },
+  { type: 'square', className: 'bg-shape-2', color: '#C6FF00', size: 22, duration: 2.6, delay: 0.5 },
+  { type: 'circle', className: 'bg-shape-3', color: '#6E7076', size: 18, duration: 3.8, delay: 1 },
+  { type: 'square', className: 'bg-shape-4', color: '#6E7076', size: 24, duration: 2.9, delay: 1.4 },
+  { type: 'circle', className: 'bg-shape-5', color: '#C6FF00', size: 20, duration: 3.4, delay: 0.8 },
+  { type: 'square', className: 'bg-shape-6', color: '#6E7076', size: 16, duration: 2.4, delay: 1.8 },
+  { type: 'circle', className: 'bg-shape-7', color: '#6E7076', size: 22, duration: 3.6, delay: 0.3 },
 ] as const;
 
 function BackgroundDecoration() {

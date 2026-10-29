@@ -13,9 +13,9 @@ interface AdminGameIdsProps {
 }
 
 const GAME_ID_STATUS_STYLE: Record<GameIdLink['status'], { label: string; icon: string; color: string; bg: string }> = {
-  pending: { label: 'Pending', icon: '⏳', color: 'var(--warning)', bg: 'rgba(245, 158, 11, 0.1)' },
-  verified: { label: 'Verified', icon: '✅', color: 'var(--success)', bg: 'rgba(16, 185, 129, 0.1)' },
-  rejected: { label: 'Rejected', icon: '❌', color: 'var(--danger)', bg: 'rgba(239, 68, 68, 0.1)' },
+  pending: { label: 'Pending', icon: '⏳', color: 'var(--warning)', bg: 'rgba(255, 176, 32, 0.1)' },
+  verified: { label: 'Verified', icon: '✅', color: 'var(--success)', bg: 'rgba(198, 255, 0, 0.1)' },
+  rejected: { label: 'Rejected', icon: '❌', color: 'var(--danger)', bg: 'rgba(255, 77, 77, 0.1)' },
 };
 
 function AdminGameIds({
@@ -42,7 +42,7 @@ function AdminGameIds({
               <div style={{ marginBottom: '1rem' }}>
                 <strong style={{ color: '#fff' }}>{link.profile?.display_name}</strong>
                 <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}> linked </span>
-                <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '3px 8px', borderRadius: '6px', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--accent)' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '3px 8px', borderRadius: '6px', background: 'rgba(198, 255, 0, 0.1)', color: 'var(--accent)' }}>
                   {link.game_type}
                 </span>
                 <div style={{ fontSize: '0.9rem', color: '#fff', marginTop: '0.35rem', fontFamily: 'monospace' }}>

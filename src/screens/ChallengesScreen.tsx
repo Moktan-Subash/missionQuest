@@ -82,19 +82,23 @@ function ChallengesScreen({
   }, [deepLinkChallengeId, challenges, myChallenges]);
 
   return (
-    <div className="screen animate-fade-in">
-      <h2 style={{ fontSize: '1.5rem', textAlign: 'left', marginBottom: '0.5rem' }}>⚔️ Challenges</h2>
-      <p style={{ textAlign: 'left', marginBottom: '1.5rem', color: 'var(--text-muted)' }}>
-        Wager real money on a 1v1 or team match. Open challenges are broadcast to every verified player of that game --
-        first to accept plays for the pot.
-      </p>
+    <div className="screen animate-fade-in page">
+      <div className="page-head">
+        <div>
+          <h2 className="page-title font-display">Challenges</h2>
+          <p className="page-subtitle page-subtitle-wide">
+            Wager real money on a 1v1 or team match. Open challenges are broadcast to every verified player of that game --
+            first to accept plays for the pot.
+          </p>
+        </div>
+      </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.5rem' }}>
-        <div className="game-filters">
+      <div className="toolbar">
+        <div className="chip-row">
           {GAME_FILTERS.map((g) => (
             <button
               key={g}
-              className={`filter-btn ${challengeGameFilter === g ? 'active' : ''}`}
+              className={`chip ${challengeGameFilter === g ? 'active' : ''}`}
               onClick={() => setChallengeGameFilter(g)}
             >
               {g === 'ALL' ? 'ALL' : `${GAME_ICON[g]} ${g}`}
@@ -111,8 +115,8 @@ function ChallengesScreen({
       </div>
 
       {activeMyChallenges.length > 0 && (
-        <div style={{ marginBottom: '2rem' }}>
-          <h3 style={{ fontSize: '1.1rem', marginBottom: '12px', textAlign: 'left' }}>My Active Challenges</h3>
+        <div className="page-section">
+          <h3 className="page-section-title">My Active Challenges</h3>
           <div className="missions-grid">
             {activeMyChallenges.map((c) => {
               const isCreator = c.creator_user_id === user?.id;
@@ -120,7 +124,7 @@ function ChallengesScreen({
               return (
                 <div key={c.id} id={`challenge-card-${c.id}`} className="mission-card">
                   <div className="mission-card-image-wrap">
-                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem' }}>
+                    <div className="card-art-fallback">
                       {GAME_ICON[c.game_type]}
                     </div>
                     <span className="floating-badge floating-badge-featured">{GAME_ICON[c.game_type]} {c.game_type}</span>
@@ -136,11 +140,11 @@ function ChallengesScreen({
                     {c.status === 'awaiting_review' ? (
                       <div className="tournament-registered-recap">⏳ Result submitted, awaiting admin review.</div>
                     ) : (
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
-                        <button onClick={() => openChallengeChat(c)} className="btn btn-secondary" style={{ padding: '4px 12px', fontSize: '0.75rem' }}>
+                      <div className="card-actions">
+                        <button onClick={() => openChallengeChat(c)} className="btn btn-secondary btn-sm">
                           💬 Chat
                         </button>
-                        <button onClick={() => openSubmitChallengeResultModal(c)} className="btn btn-primary" style={{ padding: '4px 12px', fontSize: '0.75rem' }}>
+                        <button onClick={() => openSubmitChallengeResultModal(c)} className="btn btn-primary btn-sm">
                           Submit Result
                         </button>
                       </div>
@@ -153,9 +157,9 @@ function ChallengesScreen({
         </div>
       )}
 
-      <h3 style={{ fontSize: '1.1rem', marginBottom: '12px', textAlign: 'left' }}>Open Challenges</h3>
+      <h3 className="page-section-title">Open Challenges</h3>
       {openChallenges.length === 0 ? (
-        <div className="card" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+        <div className="page-empty">
           No open challenges right now{challengeGameFilter !== 'ALL' ? ` for ${challengeGameFilter}` : ''}. Be the first to create one!
         </div>
       ) : (
@@ -168,7 +172,7 @@ function ChallengesScreen({
             return (
               <div key={c.id} id={`challenge-card-${c.id}`} className="mission-card">
                 <div className="mission-card-image-wrap">
-                  <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem' }}>
+                  <div className="card-art-fallback">
                     {GAME_ICON[c.game_type]}
                   </div>
                   <span className="floating-badge floating-badge-featured">{GAME_ICON[c.game_type]} {c.game_type}</span>
@@ -180,14 +184,14 @@ function ChallengesScreen({
                     <div className="info-item info-item-reward">💰 Rs. {c.stake_amount.toLocaleString()} stake</div>
                     <div className="info-item">🏆 Rs. {(c.stake_amount * 2 * 0.99).toLocaleString(undefined, { maximumFractionDigits: 2 })} to win</div>
                   </div>
-                  <div className="mission-card-info-row" style={{ marginTop: '-10px' }}>
-                    <div className="info-item" style={{ fontSize: '0.75rem' }}>
+                  <div className="mission-card-info-row">
+                    <div className="info-item info-item-sm">
                       🕒 Expires in <CountdownTimer target={c.expires_at} />
                     </div>
                   </div>
 
                   {isMine ? (
-                    <button onClick={() => handleCancelChallenge(c.id)} className="btn btn-secondary" style={{ color: 'var(--danger)' }}>
+                    <button onClick={() => handleCancelChallenge(c.id)} className="btn btn-danger-outline tournament-cta">
                       Cancel Challenge
                     </button>
                   ) : !user ? (
@@ -195,12 +199,11 @@ function ChallengesScreen({
                       Accept Challenge
                     </button>
                   ) : !isVerified ? (
-                    <div className="tournament-registered-recap" style={{ background: 'rgba(245, 158, 11, 0.06)', borderColor: 'rgba(245, 158, 11, 0.2)' }}>
+                    <div className="tournament-registered-recap is-warning">
                       Link &amp; verify your <strong>{mappedGameIdType}</strong> ID to accept.
                       <button
                         onClick={() => handleTabClick('profile')}
-                        className="btn btn-secondary"
-                        style={{ marginTop: '8px', padding: '4px 12px', fontSize: '0.75rem', display: 'block' }}
+                        className="btn btn-secondary btn-sm"
                       >
                         Go to Profile
                       </button>
@@ -221,8 +224,8 @@ function ChallengesScreen({
       )}
 
       {historyMyChallenges.length > 0 && (
-        <div style={{ margin: '32px 0' }}>
-          <h3 style={{ fontSize: '1.1rem', marginBottom: '12px', textAlign: 'left' }}>My Challenge History</h3>
+        <div className="page-section">
+          <h3 className="page-section-title">My Challenge History</h3>
           <div className="missions-grid">
             {historyMyChallenges.map((c) => {
               const isCreator = c.creator_user_id === user?.id;
@@ -232,19 +235,11 @@ function ChallengesScreen({
               return (
                 <div key={c.id} id={`challenge-card-${c.id}`} className="mission-card">
                   <div className="mission-card-image-wrap">
-                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem' }}>
+                    <div className="card-art-fallback">
                       {GAME_ICON[c.game_type]}
                     </div>
                     <span className="floating-badge floating-badge-featured">{GAME_ICON[c.game_type]} {c.game_type}</span>
-                    <span
-                      className="floating-badge floating-badge-difficulty"
-                      style={{
-                        background: won ? 'rgba(16, 185, 129, 0.85)' : 'rgba(9, 9, 11, 0.75)',
-                        color: '#fff',
-                        backdropFilter: 'blur(4px)',
-                        border: won ? 'none' : '1px solid rgba(255,255,255,0.1)',
-                      }}
-                    >
+                    <span className={`floating-badge floating-badge-difficulty ${won ? 'floating-badge-won' : 'floating-badge-past'}`}>
                       {c.status === 'completed' ? (won ? '🏆 Won' : 'Lost') : c.status === 'cancelled' ? 'Cancelled' : 'Expired'}
                     </span>
                   </div>

@@ -41,7 +41,7 @@ function PhoneVerificationModal({
         </p>
 
         {phoneError && (
-          <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--danger)', color: 'var(--danger)', padding: '0.5rem', borderRadius: '8px', fontSize: '0.85rem', marginBottom: '1rem', textAlign: 'left' }}>
+          <div className="form-error">
             {phoneError}
           </div>
         )}
@@ -101,7 +101,7 @@ function PhoneVerificationModal({
               <button
                 type="button"
                 onClick={() => setOtpSent(false)}
-                style={{ background: 'none', border: 'none', color: '#3F83F8', cursor: 'pointer', fontWeight: 600, padding: 0 }}
+                style={{ background: 'none', border: 'none', color: '#C6FF00', cursor: 'pointer', fontWeight: 600, padding: 0 }}
               >
                 ← Change Number
               </button>

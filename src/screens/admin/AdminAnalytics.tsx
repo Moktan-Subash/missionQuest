@@ -14,7 +14,7 @@ interface AdminAnalyticsProps {
 const TIER_COLORS: Record<string, string> = {
   free: '#71717A',
   bronze: '#CD7F32',
-  gold: '#F59E0B',
+  gold: '#FFB020',
 };
 
 const CHART_TOOLTIP_STYLE = { background: '#18181B', border: '1px solid #27272A', borderRadius: '8px', color: '#F4F4F5' };
@@ -87,7 +87,7 @@ function AdminAnalytics({ analyticsData, loadingAnalytics, fetchAnalyticsData, a
                   <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(value: any) => `Rs. ${Number(value).toFixed(0)}`} />
                   <Bar dataKey="amount" radius={[6, 6, 0, 0]}>
                     {revenueData.map((entry) => (
-                      <Cell key={entry.name} fill={entry.kind === 'in' ? '#10B981' : '#EF4444'} />
+                      <Cell key={entry.name} fill={entry.kind === 'in' ? '#C6FF00' : '#FF4D4D'} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -125,7 +125,7 @@ function AdminAnalytics({ analyticsData, loadingAnalytics, fetchAnalyticsData, a
                   <XAxis type="number" stroke="#A1A1AA" fontSize={12} />
                   <YAxis type="category" dataKey="title" stroke="#A1A1AA" fontSize={12} width={160} />
                   <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(value: any) => `Rs. ${Number(value).toFixed(0)}`} />
-                  <Bar dataKey="total" fill="#3F83F8" radius={[0, 6, 6, 0]} />
+                  <Bar dataKey="total" fill="#C6FF00" radius={[0, 6, 6, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}

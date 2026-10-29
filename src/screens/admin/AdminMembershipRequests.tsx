@@ -31,7 +31,7 @@ function AdminMembershipRequests({
                 <div>
                   <strong style={{ color: '#fff' }}>{req.profile?.display_name}</strong>
                   <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}> wants to upgrade to </span>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '3px 8px', borderRadius: '6px', background: 'rgba(245, 158, 11, 0.1)', color: 'var(--warning)', textTransform: 'uppercase' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '3px 8px', borderRadius: '6px', background: 'rgba(255, 176, 32, 0.1)', color: 'var(--warning)', textTransform: 'uppercase' }}>
                     {req.tier}
                   </span>
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
@@ -87,9 +87,9 @@ function AdminMembershipRequests({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           {allMembershipRequests.map((req) => {
             const membershipStatusStyle: Record<string, { label: string; icon: string; color: string; bg: string }> = {
-              pending: { label: 'Pending', icon: '⏳', color: 'var(--warning)', bg: 'rgba(245, 158, 11, 0.1)' },
-              approved: { label: 'Completed', icon: '✅', color: 'var(--success)', bg: 'rgba(16, 185, 129, 0.1)' },
-              rejected: { label: 'Cancelled', icon: '❌', color: 'var(--danger)', bg: 'rgba(239, 68, 68, 0.1)' }
+              pending: { label: 'Pending', icon: '⏳', color: 'var(--warning)', bg: 'rgba(255, 176, 32, 0.1)' },
+              approved: { label: 'Completed', icon: '✅', color: 'var(--success)', bg: 'rgba(198, 255, 0, 0.1)' },
+              rejected: { label: 'Cancelled', icon: '❌', color: 'var(--danger)', bg: 'rgba(255, 77, 77, 0.1)' }
             };
             const s = membershipStatusStyle[req.status];
             return (

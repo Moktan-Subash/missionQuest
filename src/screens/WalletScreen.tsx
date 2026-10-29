@@ -14,137 +14,106 @@ function WalletScreen({ wallet, setShowAddMoneyModal, setShowWithdrawModal, depo
   const pendingCount = deposits.filter((d) => d.status === 'pending').length + payouts.filter((p) => p.status === 'pending').length;
 
   return (
-    <div className="screen">
-      <h2 style={{ fontSize: '1.5rem', textAlign: 'left', marginBottom: '1.5rem' }}>Wallet Balance</h2>
-
-      <div className="stat-tiles-bar">
-        <div className="stat-tile">
-          <div className="stat-tile-val" style={{ color: 'var(--success)' }}>Rs. {totalDeposited.toFixed(0)}</div>
-          <div className="stat-tile-lbl">Total Deposited</div>
-        </div>
-        <div className="stat-tile">
-          <div className="stat-tile-val" style={{ color: 'var(--danger)' }}>Rs. {totalWithdrawn.toFixed(0)}</div>
-          <div className="stat-tile-lbl">Total Withdrawn</div>
-        </div>
-        <div className="stat-tile">
-          <div className="stat-tile-val">{pendingCount}</div>
-          <div className="stat-tile-lbl">Pending Requests</div>
+    <div className="screen page">
+      <div className="page-head">
+        <div>
+          <h2 className="page-title font-display">Wallet</h2>
+          <p className="page-subtitle">Balance, deposits and withdrawals</p>
         </div>
       </div>
 
-      <div className="wallet-grid">
-        <div className="card wallet-card">
-          <div className="wallet-balance-icon">💰</div>
-          <div style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>AVAILABLE CASH</div>
-          <div style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--success)' }}>
+      <div className="wl-top">
+        <div className="wl-balance">
+          <div className="section-label">Available Cash</div>
+          <div className="wl-balance-amount font-display">
             Rs. {wallet?.balance.toFixed(0) || '0'}
           </div>
-          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', width: '100%' }}>
-            <button
-              onClick={() => setShowAddMoneyModal(true)}
-              className="btn btn-secondary"
-              style={{ flex: 1, color: 'var(--success)' }}
-            >
+          <div className="wl-balance-actions">
+            <button onClick={() => setShowAddMoneyModal(true)} className="btn btn-secondary">
               + Add Money
             </button>
             <button
               onClick={() => setShowWithdrawModal(true)}
               disabled={!wallet || wallet.balance <= 0}
               className="btn btn-primary"
-              style={{ flex: 1 }}
             >
               Withdraw Cash
             </button>
           </div>
-          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-            Methods: eSewa (Nepal) & PayPal.
-          </p>
+          <p className="wl-methods">Methods: eSewa (Nepal) & PayPal.</p>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          <div className="card" style={{ textAlign: 'left' }}>
-            <h3 style={{ marginBottom: '1.5rem', fontSize: '1.1rem', color: 'var(--primary)' }}>Deposit History</h3>
-            {deposits.length === 0 ? (
-              <p style={{ color: 'var(--text-muted)', padding: '2rem 0', textAlign: 'center' }}>
-                No deposits requested yet.
-              </p>
-            ) : (
-              deposits.map((request) => (
-                <div key={request.id} className="history-item">
-                  <div className="history-icon history-icon-in">💵</div>
-                  <div className="history-body">
-                    <div className="history-header">
-                      <span style={{ fontWeight: 700 }}>
-                        {request.payment_method.toUpperCase()} Deposit
-                      </span>
-                      <span style={{ fontWeight: 700, color: 'var(--success)' }}>
-                        +Rs. {request.amount.toFixed(0)}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                      <span>Ref: {request.reference_note}</span>
-                      <span>{new Date(request.requested_at).toLocaleDateString()}</span>
-                    </div>
-                    <div style={{ marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                      <span className={`badge badge-${request.status}`}>
-                        {request.status}
-                      </span>
-                      {request.admin_notes && (
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                          Note: {request.admin_notes}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
+        <div className="wl-stats">
+          <div className="wl-stat">
+            <div className="section-label">Total Deposited</div>
+            <div className="wl-stat-val font-display text-success">Rs. {totalDeposited.toFixed(0)}</div>
           </div>
-
-          <div className="card" style={{ textAlign: 'left' }}>
-            <h3 style={{ marginBottom: '1.5rem', fontSize: '1.1rem', color: 'var(--primary)' }}>Transaction History</h3>
-            {payouts.length === 0 ? (
-              <p style={{ color: 'var(--text-muted)', padding: '2rem 0', textAlign: 'center' }}>
-                No withdrawals requested yet.
-              </p>
-            ) : (
-              payouts.map((request) => (
-                <div key={request.id} className="history-item">
-                  <div className="history-icon history-icon-out">💸</div>
-                  <div className="history-body">
-                    <div className="history-header">
-                      <span style={{ fontWeight: 700 }}>
-                        {request.payment_method.toUpperCase()} Transfer
-                      </span>
-                      <span style={{ fontWeight: 700, color: 'var(--danger)' }}>
-                        -Rs. {request.amount.toFixed(0)}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                      <span>Details: {request.payment_details}</span>
-                      <span>{new Date(request.requested_at).toLocaleDateString()}</span>
-                    </div>
-                    <div style={{ marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                      <span className={`badge badge-${request.status}`}>
-                        {request.status}
-                      </span>
-                      {request.transaction_id && (
-                        <span style={{ fontSize: '0.8rem', color: 'var(--success)', fontFamily: 'monospace' }}>
-                          TxID: {request.transaction_id}
-                        </span>
-                      )}
-                      {request.admin_notes && (
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                          Note: {request.admin_notes}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
+          <div className="wl-stat">
+            <div className="section-label">Total Withdrawn</div>
+            <div className="wl-stat-val font-display text-danger">Rs. {totalWithdrawn.toFixed(0)}</div>
+          </div>
+          <div className="wl-stat">
+            <div className="section-label">Pending Requests</div>
+            <div className="wl-stat-val font-display">{pendingCount}</div>
           </div>
         </div>
+      </div>
+
+      <div className="wl-history">
+        <section className="wl-panel">
+          <h3 className="wl-panel-title font-display">Deposit History</h3>
+          {deposits.length === 0 ? (
+            <p className="wl-empty">No deposits requested yet.</p>
+          ) : (
+            deposits.map((request) => (
+              <div key={request.id} className="wl-item">
+                <div className="wl-item-icon wl-item-icon-in">↓</div>
+                <div className="wl-item-body">
+                  <div className="wl-item-head">
+                    <span className="wl-item-title">{request.payment_method.toUpperCase()} Deposit</span>
+                    <span className="wl-item-amount text-success">+Rs. {request.amount.toFixed(0)}</span>
+                  </div>
+                  <div className="wl-item-meta">
+                    <span>Ref: {request.reference_note}</span>
+                    <span>{new Date(request.requested_at).toLocaleDateString()}</span>
+                  </div>
+                  <div className="wl-item-foot">
+                    <span className={`badge badge-${request.status}`}>{request.status}</span>
+                    {request.admin_notes && <span className="wl-item-note">Note: {request.admin_notes}</span>}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </section>
+
+        <section className="wl-panel">
+          <h3 className="wl-panel-title font-display">Transaction History</h3>
+          {payouts.length === 0 ? (
+            <p className="wl-empty">No withdrawals requested yet.</p>
+          ) : (
+            payouts.map((request) => (
+              <div key={request.id} className="wl-item">
+                <div className="wl-item-icon wl-item-icon-out">↑</div>
+                <div className="wl-item-body">
+                  <div className="wl-item-head">
+                    <span className="wl-item-title">{request.payment_method.toUpperCase()} Transfer</span>
+                    <span className="wl-item-amount text-danger">-Rs. {request.amount.toFixed(0)}</span>
+                  </div>
+                  <div className="wl-item-meta">
+                    <span>Details: {request.payment_details}</span>
+                    <span>{new Date(request.requested_at).toLocaleDateString()}</span>
+                  </div>
+                  <div className="wl-item-foot">
+                    <span className={`badge badge-${request.status}`}>{request.status}</span>
+                    {request.transaction_id && <span className="wl-item-note mono text-success">TxID: {request.transaction_id}</span>}
+                    {request.admin_notes && <span className="wl-item-note">Note: {request.admin_notes}</span>}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </section>
       </div>
     </div>
   );

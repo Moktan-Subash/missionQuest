@@ -242,7 +242,7 @@ function TournamentCard({
                     )}
 
                     {!isHistory && m.match_type === 'bracket' && m.status !== 'completed' && (m.participants || []).length === 2 && (
-                      <div style={{ marginTop: '0.5rem', padding: '0.5rem', background: 'rgba(245, 158, 11, 0.06)', border: '1px solid rgba(245, 158, 11, 0.2)', borderRadius: '8px' }}>
+                      <div style={{ marginTop: '0.5rem', padding: '0.5rem', background: 'rgba(255, 176, 32, 0.06)', border: '1px solid rgba(255, 176, 32, 0.2)', borderRadius: '8px' }}>
                         {m.proposed_winner_registration_id ? (
                           <div style={{ fontSize: '0.8rem', marginBottom: '0.4rem' }}>
                             Proposed winner: <strong style={{ color: '#fff' }}>

@@ -55,7 +55,7 @@ function AdminPlayers({
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                   {p.is_banned && (
-                    <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '4px 10px', borderRadius: '6px', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '4px 10px', borderRadius: '6px', background: 'rgba(255, 77, 77, 0.1)', color: 'var(--danger)' }}>
                       Banned
                     </span>
                   )}
